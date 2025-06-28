@@ -1,0 +1,23 @@
+# Directorios de módulos
+node_modules/
+frontend/node_modules/
+services/*/node_modules/
+
+# Variables de entorno
+.env
+services/*/.env
+
+# Archivos de logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Otros archivos de build o temporales
+build/
+.DS_Store
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.iml
+.idea/

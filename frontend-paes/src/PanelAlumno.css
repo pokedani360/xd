@@ -1,0 +1,106 @@
+.panel-alumno {
+  font-family: 'Segoe UI', sans-serif;
+  background: #f7f9fc;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+.panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: #4b6cb7;
+  color: white;
+  padding: 10px 20px;
+  border-radius: 10px;
+}
+
+.panel-nav {
+  margin-top: 20px;
+  display: flex;
+  gap: 10px;
+}
+
+.panel-nav button {
+  background-color: #1f4e79;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+.panel-nav button:hover {
+  background-color: #15507c;
+}
+
+.panel-main {
+  margin-top: 30px;
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+.titulo-seccion {
+  font-size: 1.8rem;
+  margin-bottom: 1.5rem;
+  text-align: center;
+  color: #333;
+}
+
+.selector-materia {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.selector-materia select {
+  padding: 6px 12px;
+  font-size: 1rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.tabla-contenedor {
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.tabla-ensayos {
+  width: 90%;
+  max-width: 800px;
+  border-collapse: collapse;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.1);
+  background: white;
+}
+
+.tabla-ensayos th,
+.tabla-ensayos td {
+  padding: 12px 16px;
+  text-align: center;
+  border: 1px solid #ddd;
+}
+
+.tabla-ensayos th {
+  background-color: #f4f4f4;
+  font-weight: bold;
+}
+
+.btn-comenzar {
+  background-color: #007bff;
+  color: white;
+  padding: 6px 14px;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.btn-comenzar:hover {
+  background-color: #0056b3;
+}

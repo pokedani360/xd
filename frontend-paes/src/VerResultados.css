@@ -1,0 +1,298 @@
+/* General container styles */
+.resultados-container {
+  padding: 30px;
+  max-width: 1000px;
+  margin: 30px auto;
+  background-color: #f9f9f9;
+  border-radius: 10px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+  font-family: 'Inter', sans-serif;
+  color: #333;
+}
+
+.resultados-container h2 {
+  text-align: center;
+  color: #2c3e50;
+  margin-bottom: 30px;
+  font-size: 2.2em;
+  font-weight: 700;
+  border-bottom: 2px solid #3498db;
+  padding-bottom: 10px;
+}
+
+/* Filter section */
+.filtros-resultados {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 15px;
+  justify-content: center;
+  margin-bottom: 25px;
+  padding: 15px;
+  background-color: #ecf0f1;
+  border-radius: 8px;
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.filtros-resultados label {
+  font-weight: 600;
+  color: #34495e;
+  margin-right: 5px;
+  align-self: center;
+}
+
+.filtros-resultados input[type="text"],
+.filtros-resultados select {
+  padding: 10px 15px;
+  border: 1px solid #bdc3c7;
+  border-radius: 5px;
+  font-size: 1em;
+  color: #34495e;
+  width: 180px;
+  box-sizing: border-box;
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.filtros-resultados input[type="text"]:focus,
+.filtros-resultados select:focus {
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+  outline: none;
+}
+
+.filtros-resultados button {
+  padding: 10px 20px;
+  background-color: #2ecc71; /* Green for action */
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1em;
+  font-weight: 600;
+  transition: background-color 0.3s ease, transform 0.2s ease;
+}
+
+.filtros-resultados button:hover {
+  background-color: #27ae60;
+  transform: translateY(-2px);
+}
+
+/* No results message */
+.no-resultados {
+  text-align: center;
+  color: #7f8c8d;
+  font-size: 1.1em;
+  padding: 40px 20px;
+  background-color: #ecf0f1;
+  border-radius: 8px;
+  margin-top: 30px;
+}
+
+/* Results Table */
+.tabla-resultados {
+  width: 100%;
+  border-collapse: separate; /* For rounded corners */
+  border-spacing: 0;
+  margin-top: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  overflow: hidden; /* Ensures rounded corners are visible */
+}
+
+.tabla-resultados th,
+.tabla-resultados td {
+  padding: 15px;
+  text-align: left;
+  border-bottom: 1px solid #ddd;
+}
+
+.tabla-resultados th {
+  background-color: #3498db;
+  color: white;
+  font-weight: 700;
+  text-transform: uppercase;
+  font-size: 0.9em;
+  position: sticky;
+  top: 0; /* Keep header visible on scroll if container is scrollable */
+}
+
+.tabla-resultados tr:nth-child(even) {
+  background-color: #f2f2f2;
+}
+
+.tabla-resultados tr:hover {
+  background-color: #e0f2f7; /* Lighter blue on hover */
+  transform: scale(1.005);
+  transition: background-color 0.2s ease, transform 0.1s ease;
+}
+
+.tabla-resultados button {
+  padding: 8px 15px;
+  background-color: #3498db; /* Blue for 'Ver Detalles' */
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: background-color 0.2s ease;
+}
+
+.tabla-resultados button:hover {
+  background-color: #2980b9;
+}
+
+/* Modal for detailed results (Example structure, you might use a dedicated component) */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: #fff;
+  padding: 30px;
+  border-radius: 10px;
+  width: 90%;
+  max-width: 700px;
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+  position: relative;
+  max-height: 90vh; /* Limit height for scrollable content */
+  overflow-y: auto; /* Enable scrolling for modal content */
+}
+
+.modal-content h3 {
+  color: #2c3e50;
+  margin-bottom: 20px;
+  text-align: center;
+  font-size: 1.8em;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 10px;
+}
+
+.modal-content .close-button {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: none;
+  border: none;
+  font-size: 1.8em;
+  cursor: pointer;
+  color: #7f8c8d;
+  transition: color 0.2s ease;
+}
+
+.modal-content .close-button:hover {
+  color: #c0392b; /* Red on hover */
+}
+
+.pregunta-detalle {
+  background-color: #ecf0f1;
+  padding: 15px;
+  border-radius: 8px;
+  margin-bottom: 15px;
+  border-left: 5px solid #3498db;
+}
+
+.pregunta-detalle p {
+  margin-bottom: 8px;
+  line-height: 1.4;
+}
+
+.pregunta-detalle .enunciado {
+  font-weight: 600;
+  color: #2c3e50;
+  font-size: 1.1em;
+}
+
+.pregunta-detalle .opciones span {
+  display: block;
+  margin-left: 10px;
+  color: #555;
+}
+
+.pregunta-detalle .respuesta-correcta {
+  color: #27ae60; /* Green for correct answer */
+  font-weight: 700;
+}
+
+.pregunta-detalle .respuesta-dada {
+  color: #e67e22; /* Orange for given answer */
+  font-weight: 700;
+}
+
+.pregunta-detalle .estado-respuesta {
+  font-weight: 700;
+  margin-top: 10px;
+  padding-top: 5px;
+  border-top: 1px dashed #ccc;
+}
+
+.pregunta-detalle.correcta {
+  border-left-color: #27ae60; /* Green border for correct questions */
+}
+
+.pregunta-detalle.incorrecta {
+  border-left-color: #c0392b; /* Red border for incorrect questions */
+}
+
+.pregunta-detalle.correcta .estado-respuesta {
+  color: #27ae60;
+}
+
+.pregunta-detalle.incorrecta .estado-respuesta {
+  color: #c0392b;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .resultados-container {
+    padding: 15px;
+    margin: 15px auto;
+  }
+
+  .resultados-container h2 {
+    font-size: 1.8em;
+  }
+
+  .filtros-resultados {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .filtros-resultados input[type="text"],
+  .filtros-resultados select {
+    width: 100%;
+  }
+
+  .tabla-resultados th,
+  .tabla-resultados td {
+    padding: 10px;
+    font-size: 0.9em;
+  }
+
+  .tabla-resultados button {
+    padding: 6px 10px;
+    font-size: 0.8em;
+  }
+
+  .modal-content {
+    padding: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .resultados-container h2 {
+    font-size: 1.5em;
+  }
+
+  .tabla-resultados {
+    font-size: 0.8em;
+  }
+}
+

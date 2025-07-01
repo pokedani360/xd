@@ -95,46 +95,25 @@ build/
 *.iml
 .idea/
 
-4. Inicializar y Enviar Código (Solo si es la primera vez que sube o si el repositorio remoto está vacío)
-Si está subiendo este proyecto por primera vez a un repositorio de GitHub que estaba vacío o solo tenía un README.md generado, puede usar estos comandos para inicializar Git y subir su código.
-
-Desde la raíz de su proyecto en la terminal:
-
-# Inicializa Git en esta carpeta (si aún no lo está)
-git init
-
-# Prepara todos los archivos para el primer commit
-git add .
-
-# Guarda la primera versión de su proyecto localmente
-git commit -m "Carga inicial del proyecto"
-
-# Conecta su repositorio local con el remoto de GitHub
-git remote add origin https://github.com/Daspssj/GRUPO05-2025-PROYINF.git
-
-# Sube el proyecto a la rama 'main' en GitHub.
-# El --force reemplaza el contenido existente en el remoto, útil para la primera carga.
-git push -u origin master:main --force
-
-Nota: Es posible que se le pida su nombre de usuario y contraseña de GitHub.
-
-5. Instalar Dependencias del Frontend
+4. Instalar Dependencias del Frontend
 Navegue a la carpeta frontend e instale sus dependencias:
 
 cd frontend
 npm install # o yarn install
 
-6. Verificar el Proxy del Frontend
+5. Verificar el Proxy del Frontend
 Asegúrese de que en el archivo frontend/package.json exista la siguiente línea para que el frontend pueda comunicarse con el backend a través del Gateway Nginx:
 
 // En frontend/package.json
 "proxy": "http://localhost:80"
 
-7. Iniciar los Servicios y el Frontend
+6. Iniciar los Servicios y el Frontend
 Levantar los Microservicios con Docker Compose:
 Desde la raíz de su proyecto (donde está docker-compose.yml), ejecute:
 
-docker-compose up --build -d
+docker-compose build --no-cache
+y una vez esten todos los contenedores listos en estado "built" debe ejecutar 
+docker compose up
 
 Este comando construirá y levantará todos los servicios Docker (base de datos, microservicios y Nginx Gateway) en segundo plano.
 

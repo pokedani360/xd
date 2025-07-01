@@ -118,7 +118,12 @@ Levantar los Microservicios con Docker Compose:
 Desde la raíz de su proyecto (donde está docker-compose.yml), ejecute:
 
 docker-compose build --no-cache
-y una vez esten todos los contenedores listos en estado "built" debe ejecutar 
+
+(En caso se presente error sobre la creacion de la imagen en docker, simplemente se debe volver a ejecutar el comando "docker-compose build --no-cache" para lograr construir los contenedores,
+pues es un error interno de Docker en el manejo de las imagenes y no del código en si)
+
+y una vez esten todos los contenedores listos en estado "built" debe ejecutar
+
 docker compose up
 
 Este comando construirá y levantará todos los servicios Docker (base de datos, microservicios y Nginx Gateway) en segundo plano.

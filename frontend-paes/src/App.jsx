@@ -5,8 +5,8 @@ import PanelAlumno from './PanelAlumno';
 import PanelDocente from './PanelDocente';
 import VerEnsayos from './VerEnsayos';       
 import ResolverEnsayo from './ResolverEnsayo';
-import VerResultadosAlumno from './VerResultadosAlumno'; // ¡NUEVO COMPONENTE DE RESULTADOS PARA ALUMNOS!
-import VerResultadosDocente from './VerResultadosDocente'; // ¡NUEVO COMPONENTE DE RESULTADOS PARA DOCENTES!
+import VerResultadosAlumno from './VerResultadosAlumno'; 
+import VerResultadosDocente from './VerResultadosDocente';
 
 const App = () => {
   const [usuario, setUsuario] = useState(null);
@@ -17,14 +17,14 @@ const App = () => {
     if (stored) {
       const parsedUser = JSON.parse(stored);
       setUsuario(parsedUser);
-      // Redirige al panel correspondiente al rol del usuario
+      
       if (parsedUser.rol === 'docente') {
         navigate('/panel-docente');
       } else {
         navigate('/panel-alumno'); 
       }
     } else {
-      // Si no hay usuario almacenado, redirige al login
+
       navigate('/login');
     }
   }, []);
@@ -40,9 +40,9 @@ const App = () => {
   };
 
   const handleLogout = () => {
-    localStorage.clear(); // Limpia el almacenamiento local al cerrar sesión
-    setUsuario(null);     // Restablece el estado del usuario
-    navigate('/login');   // Redirige al login
+    localStorage.clear();
+    setUsuario(null);
+    navigate('/login');
   };
 
   return (

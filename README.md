@@ -58,12 +58,19 @@ services/respuestas-service/.env (si existe)
 El contenido general para cada uno será:
 
 PORT=XXXX
+
 DB_USER=user
+
 DB_HOST=postgres-paes
+
 DB_DATABASE=paes_db
+
 DB_PASSWORD=password
+
 DB_PORT=5432
+
 JWT_SECRET=supersecretodev
+
 
 Nota Importante: El valor de JWT_SECRET (supersecretodev en este ejemplo) debe ser idéntico en todos los archivos .env de los servicios que lo requieran.
 

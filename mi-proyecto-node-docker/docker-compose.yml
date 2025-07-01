@@ -6,13 +6,21 @@ version: "3.9"
 x-db-env: &db-env
   DB_HOST: postgres
   DB_PORT: 5432
-  DB_USER: user
-  DB_PASSWORD: password
-  DB_NAME: paes_db
+  DB_USER: ${DB_USER:-user}
+  DB_PASSWORD: ${DB_PASSWORD:-password}
+  DB_NAME: ${DB_NAME:-paes_db}
   JWT_SECRET: superSecret123
 
 x-restart: &always
   restart: unless-stopped
+
+# ANCLAJE PARA LA BASE DE LOS MICROSERVICIOS
+x-service-base: &service-base
+  depends_on:
+    postgres:
+      condition: service_healthy
+  networks: [paes_net]
+  <<: *always
 
 ########################
 # 2)     servicios     #
@@ -20,104 +28,99 @@ x-restart: &always
 services:
 
   # ---------- base de datos ----------
-  postgres: # Nombre del servicio (usado para comunicación interna y definición de volumen)
+  postgres:
     image: postgres:15
-    container_name: paes-postgres # Nombre del contenedor específico
+    container_name: paes-postgres
     environment:
       POSTGRES_USER: ${DB_USER:-user}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
       POSTGRES_DB: ${DB_NAME:-paes_db}
     volumes:
-      - ./db:/docker-entrypoint-initdb.d/ # Monta tu carpeta 'db' con los scripts SQL
-      - postgres_data:/var/lib/postgresql/data # <--- Referencia al volumen definido abajo
+      - ./db:/docker-entrypoint-initdb.d/
+      - postgres_data:/var/lib/postgresql/data
     ports:
-      - "5433:5432" # Mapea el puerto del host (5433) al del contenedor (5432)
+      - "5433:5432"
     networks: [paes_net]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-user} -d ${DB_NAME:-paes_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # ---------- micro-servicios ----------
   auth-service:
-    build:
+    <<: *service-base # Aplica las propiedades comunes
+    container_name: paes-auth
+    build: 
       context: .
-      dockerfile: services/_common/Dockerfile
+      dockerfile: ./services/_common/Dockerfile
       args:
         SERVICE: services/auth
-    container_name: paes-auth
     environment:
       <<: *db-env
       PORT: 5001
-    depends_on: [postgres]
-    networks: [paes_net]
-    <<: *always
 
   preguntas-service:
+    <<: *service-base
+    container_name: paes-preguntas
     build:
       context: .
-      dockerfile: services/_common/Dockerfile
+      dockerfile: ./services/_common/Dockerfile
       args:
         SERVICE: services/preguntas
-    container_name: paes-preguntas
     environment:
       <<: *db-env
       PORT: 5002
-    depends_on: [postgres]
-    networks: [paes_net]
-    <<: *always
+  
+  # ... y así sucesivamente para los demás servicios ...
 
   ensayos-service:
+    <<: *service-base
+    container_name: paes-ensayos
     build:
       context: .
-      dockerfile: services/_common/Dockerfile
+      dockerfile: ./services/_common/Dockerfile
       args:
         SERVICE: services/ensayos
-    container_name: paes-ensayos
     environment:
       <<: *db-env
       PORT: 5003
-    depends_on: [postgres]
-    networks: [paes_net]
-    <<: *always
 
   resultados-service:
+    <<: *service-base
+    container_name: paes-resultados
     build:
       context: .
-      dockerfile: services/_common/Dockerfile
+      dockerfile: ./services/_common/Dockerfile
       args:
         SERVICE: services/resultados
-    container_name: paes-resultados
     environment:
       <<: *db-env
       PORT: 5004
-    depends_on: [postgres]
-    networks: [paes_net]
-    <<: *always
 
   materias-service:
+    <<: *service-base
+    container_name: paes-materias
     build:
       context: .
-      dockerfile: services/_common/Dockerfile
+      dockerfile: ./services/_common/Dockerfile
       args:
         SERVICE: services/materias
-    container_name: paes-materias
     environment:
       <<: *db-env
       PORT: 5005
-    depends_on: [postgres]
-    networks: [paes_net]
-    <<: *always
 
   respuestas-service:
+    <<: *service-base
+    container_name: paes-respuestas
     build:
       context: .
-      dockerfile: services/_common/Dockerfile
+      dockerfile: ./services/_common/Dockerfile
       args:
         SERVICE: services/respuestas
-    container_name: paes-respuestas
     environment:
       <<: *db-env
       PORT: 5006
-    depends_on: [postgres]
-    networks: [paes_net]
-    <<: *always
 
   # ---------- API-Gateway (NGINX) ----------
   gateway:
@@ -138,7 +141,7 @@ services:
     <<: *always
 
 ########################
-# 3)     redes      #
+# 3)     redes         #
 ########################
 networks:
   paes_net:
@@ -148,6 +151,4 @@ networks:
 # 4)     volumenes     #
 ########################
 volumes:
-  postgres_data: # <--- ¡ESTA SECCIÓN ESTABA FALTANTE O MAL INDENTADA EN TU ARCHIVO ANTERIOR!
-    # Puedes añadir opciones adicionales para el volumen aquí si las necesitas,
-    # pero para una configuración básica, esto es suficiente.
+  postgres_data:

@@ -107,13 +107,7 @@ Navegue a la carpeta frontend e instale sus dependencias:
 cd frontend
 npm install # o yarn install
 
-5. Verificar el Proxy del Frontend
-Asegúrese de que en el archivo frontend/package.json exista la siguiente línea para que el frontend pueda comunicarse con el backend a través del Gateway Nginx:
-
-// En frontend/package.json
-"proxy": "http://localhost:80"
-
-6. Iniciar los Servicios y el Frontend
+5. Iniciar los Servicios y el Frontend
 Levantar los Microservicios con Docker Compose:
 Desde la raíz de su proyecto (donde está docker-compose.yml), ejecute:
 

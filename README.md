@@ -36,10 +36,9 @@ Un editor de código, como VS Code.
 Siga estos pasos desde la terminal en la raíz del proyecto.
 
 1. Clonar el Repositorio
-Si aún no ha clonado este proyecto, use el siguiente comando:
+Si aún no ha clonado este proyecto, navege en una terminal hasta la carpeta a utilizar y use el siguiente comando:
 
 git clone https://github.com/Daspssj/GRUPO05-2025-PROYINF.git
-cd GRUPO05-2025-PROYINF
 
 2. Configuración de Variables de Entorno
 Cree un archivo .env en cada una de las siguientes carpetas (son sensibles a mayúsculas/minúsculas y la extensión .env es importante).

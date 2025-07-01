@@ -57,7 +57,7 @@ services/respuestas-service/.env (si existe)
 
 El contenido general para cada uno será:
 
-PORT=XXXX
+PORT=XXXX ####DEBE REVISAR EL "docker-compose.yml" en la raiz del backend del proyecto y reemplazar las XXXX por el puerto que corresponde para cada microservicio (Ej: Para el auth service seria PORT=5001)
 
 DB_USER=user
 

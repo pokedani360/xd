@@ -381,5 +381,49 @@ router.get('/listar-todos', verificarToken, authorizeRoles(['alumno', 'docente',
     }
 });
 
+// ================= Ventanas de rendición =================
+
+// Crear una nueva ventana para un ensayo
+router.post('/:ensayo_id/ventanas', verificarToken, authorizeRoles(['docente', 'admin']), async (req, res) => {
+  const { ensayo_id } = req.params;
+  const { curso_id, inicio, fin, duracion_min } = req.body;
+
+  if (!curso_id || !inicio || !fin || !duracion_min) {
+    return res.status(400).json({ error: 'Faltan campos obligatorios (curso_id, inicio, fin, duracion_min)' });
+  }
+
+  try {
+    const result = await pool.query(
+      `INSERT INTO ventanas_rendicion (ensayo_id, curso_id, inicio, fin, duracion_min)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING *`,
+      [ensayo_id, curso_id, inicio, fin, duracion_min]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('💥 Error al crear ventana:', err);
+    res.status(500).json({ error: 'Error al crear ventana', detalle: err.message });
+  }
+});
+
+// Listar todas las ventanas de un ensayo
+router.get('/:ensayo_id/ventanas', verificarToken, authorizeRoles(['docente', 'admin', 'alumno']), async (req, res) => {
+  const { ensayo_id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `SELECT * FROM ventanas_rendicion
+       WHERE ensayo_id = $1
+       ORDER BY inicio ASC`,
+      [ensayo_id]
+    );
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error('💥 Error al listar ventanas:', err);
+    res.status(500).json({ error: 'Error al listar ventanas', detalle: err.message });
+  }
+});
 
 module.exports = router;

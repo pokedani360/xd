@@ -111,6 +111,12 @@ npm install
 npm start
 # abre http://localhost:3000
 ```
+4. **Ver el proceso que ocupa el puerto 3000**
+```bash
+lsof -i :3000
+# ejemplo: si el PID es 86234
+kill -9 86234
+```
 
 ---
 

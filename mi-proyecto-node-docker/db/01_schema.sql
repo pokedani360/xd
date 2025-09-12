@@ -105,3 +105,17 @@ CREATE TABLE IF NOT EXISTS usuario_proveedores (
 -- Índice único para ON CONFLICT DO NOTHING con (proveedor, proveedor_uid)
 CREATE UNIQUE INDEX IF NOT EXISTS ux_usuario_proveedores_proveedor_uid
   ON usuario_proveedores (proveedor, proveedor_uid);
+
+-- =========================
+-- Tabla: ventanas_rendicion
+-- =========================
+CREATE TABLE IF NOT EXISTS ventanas_rendicion (
+  id SERIAL PRIMARY KEY,
+  ensayo_id INT NOT NULL REFERENCES ensayos(id) ON DELETE CASCADE,
+  curso_id INT NOT NULL,
+  inicio TIMESTAMP NOT NULL,
+  fin TIMESTAMP NOT NULL,
+  duracion_min INT NOT NULL,
+  created_at TIMESTAMP DEFAULT NOW(),
+  updated_at TIMESTAMP DEFAULT NOW()
+);

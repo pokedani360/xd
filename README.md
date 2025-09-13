@@ -2,11 +2,11 @@ Se continuara trabajando en este proyecto, con un integrante nuevo el cual es Lu
 
 Integrantes:
 
-Agustin Santibañez | 
+Agustin Santibañez | 202204682-1
 
 Diego Sierra       | 202273531-7
 
-Daniel Ruiz        | 
+Daniel Ruiz        | 202273525-2
 
 Lucas Morrison     | 
 

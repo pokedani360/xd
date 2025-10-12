@@ -6,7 +6,7 @@ const verify = require('../_common/middleware/verifyToken'); // ruta correcta de
 const routes = require('./routes/resultados');
 
 const SERVICE_NAME = process.env.SERVICE_NAME || 'resultados-service';
-const PORT = Number(process.env.PORT || 5002);
+const PORT = Number(process.env.PORT || 5004);
 
 // Rutas públicas
 const PUBLIC_PATHS = new Set(['/health']);

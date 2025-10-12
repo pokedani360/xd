@@ -1,16 +1,95 @@
 /* eslint-disable no-console */
 const express = require('express');
-const { Pool } = require('pg');
 const router = express.Router();
+const pool = require('../db'); 
+const verificarToken = require('../../_common/middleware/verifyToken');
+const authorizeRoles = require('../../_common/middleware/authorizeRoles');
 
-const pool = new Pool({
-  host: process.env.DB_HOST,
-  port: Number(process.env.DB_PORT || 5432),
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME || process.env.DB_DATABASE || 'paes_db',
+// TAREA 4 (NUEVO): Endpoint para iniciar una rendición, validando el acceso (Criterio de Aceptación #2)
+// ---
+router.post('/rendiciones', verificarToken, authorizeRoles(['alumno']), async (req, res) => {
+    const { ventana_id, ensayo_id } = req.body;
+    const alumno_id = req.usuario.id; // Usamos req.usuario de tu middleware
+
+    if ((!ventana_id && !ensayo_id) || (ventana_id && ensayo_id)) {
+        return res.status(400).json({ error: 'Debes proporcionar un "ventana_id" o un "ensayo_id", pero no ambos.' });
+    }
+    
+    const client = await pool.connect();
+    try {
+        await client.query('BEGIN');
+
+        if (ventana_id) {
+            // --- Lógica para ENSAYO POR VENTANA ---
+            const ventanaResult = await client.query(
+                `SELECT vr.inicio, vr.fin, vr.curso_id, e.id as ensayo_id
+                 FROM ventanas_rendicion vr JOIN ensayos e ON vr.ensayo_id = e.id
+                 WHERE vr.id = $1`, [ventana_id]
+            );
+
+            if (ventanaResult.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ error: 'Ventana de rendición no encontrada.' });
+            }
+            const ventana = ventanaResult.rows[0];
+
+            const ahora = new Date();
+            if (ahora < ventana.inicio || ahora > ventana.fin) {
+                await client.query('ROLLBACK');
+                return res.status(403).json({ error: 'Esta evaluación no está disponible en este momento.' });
+            }
+
+            const membresiaResult = await client.query(`SELECT 1 FROM curso_miembros WHERE curso_id = $1 AND usuario_id = $2`, [ventana.curso_id, alumno_id]);
+            if (membresiaResult.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return res.status(403).json({ error: 'No tienes permiso para rendir esta evaluación.' });
+            }
+
+            const intentoPrevio = await client.query(`SELECT 1 FROM resultados WHERE alumno_id = $1 AND ventana_id = $2`, [alumno_id, ventana_id]);
+            if (intentoPrevio.rowCount > 0) {
+                await client.query('ROLLBACK');
+                return res.status(409).json({ error: 'Ya has completado un intento para esta evaluación.' });
+            }
+
+            const resultadoResult = await client.query(`INSERT INTO resultados (ensayo_id, alumno_id, fecha, ventana_id) VALUES ($1, $2, NOW(), $3) RETURNING id`, [ventana.ensayo_id, alumno_id, ventana_id]);
+            await client.query('COMMIT');
+            return res.status(201).json({ mensaje: 'Rendición iniciada.', resultado_id: resultadoResult.rows[0].id });
+
+        } else if (ensayo_id) {
+            // --- Lógica para ENSAYO PERMANENTE ---
+            const ensayoResult = await client.query(`SELECT disponibilidad, max_intentos FROM ensayos WHERE id = $1`, [ensayo_id]);
+            if (ensayoResult.rowCount === 0) {
+                await client.query('ROLLBACK');
+                return res.status(404).json({ error: 'Ensayo no encontrado.' });
+            }
+            const ensayo = ensayoResult.rows[0];
+
+            if (ensayo.disponibilidad !== 'permanente') {
+                await client.query('ROLLBACK');
+                return res.status(400).json({ error: 'Este ensayo solo se puede rendir a través de una ventana asignada.' });
+            }
+
+            if (ensayo.max_intentos !== null) {
+                const intentosResult = await client.query(`SELECT COUNT(*) as num_intentos FROM resultados WHERE alumno_id = $1 AND ensayo_id = $2`, [alumno_id, ensayo_id]);
+                if (parseInt(intentosResult.rows[0].num_intentos, 10) >= ensayo.max_intentos) {
+                    await client.query('ROLLBACK');
+                    return res.status(403).json({ error: 'Has alcanzado el límite de intentos para este ensayo.' });
+                }
+            }
+            
+            const resultadoResult = await client.query(`INSERT INTO resultados (ensayo_id, alumno_id, fecha, ventana_id) VALUES ($1, $2, NOW(), NULL) RETURNING id`, [ensayo_id, alumno_id]);
+            await client.query('COMMIT');
+            return res.status(201).json({ mensaje: 'Rendición iniciada.', resultado_id: resultadoResult.rows[0].id });
+        }
+    } catch (error) {
+        // Asegurarse de hacer rollback si algo falla
+        await client.query('ROLLBACK');
+        console.error('💥 Error al iniciar rendición en /rendiciones:', error);
+        res.status(500).json({ error: 'Error interno del servidor.', detalle: error.message });
+    } finally {
+        client.release();
+    }
 });
-
 // Helpers
 function n(x) {
   const v = Number(x);
@@ -191,8 +270,9 @@ router.post('/crear-resultado', async (req, res) => {
 //   ...
 // ]
 // ─────────────────────────────────────────────────────────────
-router.get('/ver-detalle-resultado', async (req, res) => {
-  const rid = n(req.query?.resultado_id);
+// ===== Nuevo: POST /ver-detalle-resultado (compat con el front) =====
+router.post('/ver-detalle-resultado', async (req, res) => {
+  const rid = n(req.body?.resultado_id);
   if (!rid) return res.status(400).json({ error: 'resultado_id requerido' });
 
   const rol = getRole(req);
@@ -208,16 +288,14 @@ router.get('/ver-detalle-resultado', async (req, res) => {
 
     const { alumno_id: alumnoIdDb, ensayo_id: ensayoId } = qr.rows[0];
 
-    // REGLA DE ACCESO:
-    // - Alumno: solo si el resultado es suyo
-    // - Docente/Admin: permitido ver cualquiera
+    // Regla de acceso (igual que en GET)
     if (rol === 'alumno') {
       if (!alumnoIdToken || alumnoIdDb !== alumnoIdToken) {
         return res.status(403).json({ error: 'forbidden' });
       }
     }
 
-    // 2) Traer detalle (sin cambios)
+    // 2) Traer detalle (igual que en GET)
     const q = await pool.query(
       `SELECT
          p.id                        AS pregunta_id,
@@ -232,13 +310,13 @@ router.get('/ver-detalle-resultado', async (req, res) => {
          ON r.resultado_id = $1
         AND r.pregunta_id  = p.id
        WHERE ep.ensayo_id = $2
-       ORDER BY ep.id ASC`,
+       ORDER BY ep.pregunta_id ASC`,
       [rid, ensayoId]
     );
 
     return res.json(q.rows);
   } catch (err) {
-    console.error('💥 /ver-detalle-resultado error:', err);
+    console.error('💥 POST /ver-detalle-resultado error:', err);
     return res.status(500).json({ error: 'server_error' });
   }
 });

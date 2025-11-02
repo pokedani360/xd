@@ -172,3 +172,23 @@
 .finalizar-button:hover:not(:disabled) {
   background-color: #218838; /* Un verde más oscuro al pasar el mouse */
 }
+
+.dots-paginator {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  align-items: center;
+  margin-top: 16px;
+  flex-wrap: wrap;
+}
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 999px;
+  border: 1px solid #bbb;
+  background: #eee;
+  cursor: pointer;
+}
+.dot:hover { filter: brightness(0.95); }
+.dot-active { background: #111; border-color: #111; }
+.dot-answered { outline: 2px solid #7aa2ff; } /* Marca respondidas */

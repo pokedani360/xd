@@ -73,6 +73,22 @@ const load = useCallback(async () => {
     const ensayosRes = await axiosInstance.get('/api/ensayos/listar-todos');
     const base = Array.isArray(ensayosRes.data) ? ensayosRes.data : [];
 
+    let misResultados = [];
+    try {
+        const resultadosRes = await axiosInstance.get('/api/resultados/mis-resultados');
+        misResultados = Array.isArray(resultadosRes.data) ? resultadosRes.data : [];
+    } catch (err) {
+        console.warn("No se pudieron cargar los resultados (intentos) del alumno:", err.message);
+        // No es fatal, continuamos, pero los intentos se mostrarán como 0.
+    }
+
+    // Contar intentos por ensayo
+    const intentosMap = new Map();
+    for (const res of misResultados) {
+        const id = res.ensayo_id;
+        intentosMap.set(id, (intentosMap.get(id) || 0) + 1);
+    }
+
     // 3) Enriquecer cada ensayo con sus ventanas
     const enriched = await Promise.all(base.map(async (e) => {
       const m = M.find(mm => mm.id === e.materia_id);
@@ -88,7 +104,7 @@ const load = useCallback(async () => {
 
       if (!enrichedItem.disponibilidad) enrichedItem.disponibilidad = e.disponibilidad || 'permanente';
       if (!enrichedItem.max_intentos && e.max_intentos != null) enrichedItem.max_intentos = e.max_intentos;
-      if (!enrichedItem.intentos_realizados && e.intentos_realizados != null) enrichedItem.intentos_realizados = e.intentos_realizados;
+      enrichedItem.intentos_realizados = intentosMap.get(e.id) || (e.intentos_realizados || 0);
 
       return enrichedItem;
     }));
@@ -202,13 +218,20 @@ const load = useCallback(async () => {
   };
 
   const renderIntentos = (e) => {
-    if (e.disponibilidad === 'ventana') {
-      const used = e._usedWindow ? 1 : 0;
-      return `${used}/1`;
-    }
-    const max = e.max_intentos ?? null;
+    // getUsados() ahora funciona gracias a la corrección en load()
     const usados = getUsados(e);
-    return max ? `${usados}/${max}` : 'Ilimitado';
+    const max = e.max_intentos ?? null;
+
+    // Si max es null (ilimitado)
+    if (max === null) {
+      // Si es permanente, es ilimitado
+      if (e.disponibilidad === 'permanente') return 'Ilimitado';
+      // Si es ventana y max es null (docente puso 0), asumimos 1 intento
+      return `${usados}/1`;
+    }
+
+    // Si max tiene un valor (ej: 2)
+    return `${usados}/${max}`; // Mostrará "0/2", "1/2", etc.
   };
 
   // Iniciar rendición (y si el back rechaza por límite/ventana, mover a ND en vivo)

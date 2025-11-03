@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   nombre VARCHAR(255) NOT NULL,
   correo CITEXT UNIQUE NOT NULL,
   contrasena VARCHAR(255),                  -- NULL para OAuth
-  rol VARCHAR(50) NOT NULL,
+  rol VARCHAR(50),
   avatar_url VARCHAR(255),
   correo_verificado BOOLEAN NOT NULL DEFAULT false,
   auth_origen TEXT NOT NULL DEFAULT 'local',   -- 'local' | 'google'

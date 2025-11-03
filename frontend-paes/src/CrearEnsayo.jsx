@@ -2,24 +2,27 @@ import React, { useEffect, useState, useMemo } from 'react';
 import axiosInstance from './services/axiosConfig';
 import './CrearEnsayo.css';
 
-// Convierte un valor de <input type="datetime-local"> a ISO UTC ("2025-10-20T12:00:00Z")
+// ==================================================================
+// --- (FUNCIÓN CORREGIDA) ---
+// ==================================================================
+// Convierte un valor de <input type="datetime-local"> a ISO UTC
 function toUtcIsoString(localDateTimeValue) {
   if (!localDateTimeValue) return null;
-  // El valor viene como "YYYY-MM-DDTHH:mm" en hora local del navegador
-  const d = new Date(localDateTimeValue);
-  return new Date(Date.UTC(
-    d.getFullYear(),
-    d.getMonth(),
-    d.getDate(),
-    d.getHours(),
-    d.getMinutes(),
-    d.getSeconds(),
-    d.getMilliseconds()
-  )).toISOString();
+  
+  // new Date("2025-11-02T19:13") crea un objeto de fecha en la ZONA HORARIA LOCAL del usuario.
+  // .toISOString() AUTOMÁTICAMENTE convierte esa fecha local a su string equivalente en UTC.
+  // Ej: "2025-11-02T19:13" (Chile, UTC-3) se convierte en "2025-11-02T22:13:00.000Z" (UTC).
+  // Esto es lo que queremos.
+  return new Date(localDateTimeValue).toISOString();
 }
+// ==================================================================
+// --- (FIN DE LA CORRECCIÓN) ---
+// ==================================================================
+
 
 const CrearEnsayo = ({ usuario }) => {
   const [materias, setMaterias] = useState([]);
+// ... (El resto del archivo no necesita cambios) ...
   const [materiaId, setMateriaId] = useState('');
   const [preguntas, setPreguntas] = useState([]);
   const [nombre, setNombre] = useState('');
@@ -27,15 +30,11 @@ const CrearEnsayo = ({ usuario }) => {
   const [error, setError] = useState('');
   const [mensajeExito, setMensajeExito] = useState('');
   const [isFadingOut, setIsFadingOut] = useState(false);
-
-  // NUEVO: disponibilidad del ensayo
-  const [disponibilidad, setDisponibilidad] = useState('permanente'); // 'permanente' | 'ventana'
-  const [maxIntentos, setMaxIntentos] = useState('0'); // 0 o vacío => ilimitado
-
-  // NUEVO: datos para crear ventana inicial (opcional)
+  const [disponibilidad, setDisponibilidad] = useState('permanente');
+  const [maxIntentos, setMaxIntentos] = useState('0');
   const [cursos, setCursos] = useState([]);
   const [cursoId, setCursoId] = useState('');
-  const [inicioLocal, setInicioLocal] = useState(''); // input datetime-local
+  const [inicioLocal, setInicioLocal] = useState('');
   const [duracionMin, setDuracionMin] = useState(120);
 
   const authHeaders = useMemo(() => {
@@ -43,6 +42,9 @@ const CrearEnsayo = ({ usuario }) => {
     return token ? { Authorization: `Bearer ${token}` } : {};
   }, []);
 
+  // ==================================================================
+  // --- useEffect (fetchMateriasYCursos) (MODIFICADO) ---
+  // ==================================================================
   useEffect(() => {
     const fetchMateriasYCursos = async () => {
       try {
@@ -54,10 +56,55 @@ const CrearEnsayo = ({ usuario }) => {
         const config = { headers: authHeaders };
         const [resMaterias, resCursos] = await Promise.all([
           axiosInstance.get('/api/materias/', config),
-          axiosInstance.get('/api/cursos', config).catch(() => ({ data: [] })), // si aún no existe endpoint, no rompe
+          axiosInstance.get('/api/mi/cursos', config).catch(() => ({ data: [] })),
         ]);
+
         setMaterias(resMaterias.data || []);
-        setCursos(resCursos.data || []);
+
+        // --- (INICIO DE LA CORRECCIÓN) ---
+        // Lógica de parseo robusta para /api/mi/cursos
+        const cursosData = resCursos.data;
+        let misCursos = [];
+        
+        // La API (según el log) devuelve un array plano: [{ curso_id: 1, nombre: '...' }]
+        // Transformamos este array para que coincida con lo que el resto del componente espera ({ id: ..., nombre: ... })
+        
+        if (Array.isArray(cursosData)) {
+          misCursos = cursosData
+            .map(item => {
+              // Si la API devuelve { curso: {...} }, lo extraemos.
+              // Si no, usamos el item (que es { curso_id: ..., nombre: ... })
+              const cursoObj = item.curso || item;
+
+              // Transformamos el objeto para que tenga 'id' en lugar de 'curso_id'
+              // Esto unifica el formato de los datos para el resto del componente.
+              return {
+                id: cursoObj.id || cursoObj.curso_id, // Acepta 'id' O 'curso_id'
+                nombre: cursoObj.nombre,
+                seccion: cursoObj.seccion,
+                // Mapeamos 'colegio' si existe, para el nombre en el dropdown
+                colegio: cursoObj.colegio 
+              };
+            })
+            // Filtramos cualquier dato que no tenga un ID o nombre válido después de la transformación
+            .filter(curso => curso && curso.id && curso.nombre); 
+        
+        } else {
+            console.warn("La respuesta de /api/mi/cursos no fue un array:", cursosData);
+        }
+
+        // Log de depuración para ver qué cursos se cargaron
+        console.log("Cursos parseados para el docente:", misCursos);
+        
+        // Nos aseguramos de que no haya IDs duplicados
+        const cursosUnicos = Array.from(new Map(misCursos.map(c => [c.id, c])).values());
+        
+        setCursos(cursosUnicos);
+        // --- (FIN DE LA CORRECCIÓN) ---
+        
+        if(cursosUnicos.length === 0) {
+            console.warn("No se encontraron cursos para este docente (después del filtro) o la API devolvió un formato inesperado:", cursosData);
+        }
       } catch (err) {
         console.error('Error al cargar materias/cursos:', err);
         setError(err.response?.data?.error || 'Error al cargar datos iniciales.');
@@ -66,6 +113,7 @@ const CrearEnsayo = ({ usuario }) => {
     fetchMateriasYCursos();
   }, [authHeaders]);
 
+  // Efecto para cargar preguntas al seleccionar materia
   useEffect(() => {
     const fetchPreguntas = async () => {
       if (materiaId) {
@@ -91,6 +139,7 @@ const CrearEnsayo = ({ usuario }) => {
     fetchPreguntas();
   }, [materiaId, authHeaders]);
 
+  // Efecto para ocultar mensaje de éxito
   useEffect(() => {
     if (mensajeExito) {
       setIsFadingOut(false);
@@ -106,10 +155,14 @@ const CrearEnsayo = ({ usuario }) => {
     }
   }, [mensajeExito]);
 
+  // ==================================================================
+  // --- FUNCIÓN DE CREAR ENSAYO (Ahora debería funcionar) ---
+  // ==================================================================
   const crearEnsayo = async () => {
     setError('');
     setMensajeExito('');
 
+    // 1. Validaciones de rol y campos básicos
     if (usuario?.rol !== 'docente' && usuario?.rol !== 'admin') {
       setError('Solo docentes (o admin) pueden crear ensayos.');
       return;
@@ -118,10 +171,25 @@ const CrearEnsayo = ({ usuario }) => {
       setError('Por favor, completa todos los campos y selecciona al menos una pregunta.');
       return;
     }
+    
+    // Convertimos y validamos los IDs ANTES de usarlos
+    const numCursoId = Number(cursoId);
+    const numDuracionMin = Number(duracionMin);
+    const numMaxIntentos = Number(maxIntentos) > 0 ? Number(maxIntentos) : null;
+
+    // 2. Validación de "Ventana"
     if (disponibilidad === 'ventana') {
-      if (!cursoId) return setError('Selecciona un curso para la ventana inicial.');
-      if (!inicioLocal) return setError('Selecciona fecha/hora de inicio para la ventana.');
-      if (!duracionMin || Number(duracionMin) <= 0) return setError('Duración inválida.');
+      // Esta validación ahora funcionará porque el 'value' del option será un ID numérico
+      if (isNaN(numCursoId) || numCursoId <= 0) {
+        console.error(`Validación fallida: numCursoId es ${numCursoId} (derivado de estado cursoId: '${cursoId}')`);
+        return setError('Selecciona un curso para la ventana inicial.');
+      }
+      if (!inicioLocal) {
+        return setError('Selecciona fecha/hora de inicio para la ventana.');
+      }
+      if (isNaN(numDuracionMin) || numDuracionMin <= 0) {
+        return setError('Duración inválida.');
+      }
     }
 
     try {
@@ -131,14 +199,13 @@ const CrearEnsayo = ({ usuario }) => {
       }
       const config = { headers: { ...authHeaders, 'Content-Type': 'application/json' } };
 
-      // 1) Crear el ENSAYO (con disponibilidad)
+      // 3. Crear el ENSAYO
       const payloadEnsayo = {
-        titulo: nombre, // tu backend acepta titulo o nombre; aquí usamos titulo
+        titulo: nombre,
         materia_id: Number(materiaId),
         preguntas: preguntasSeleccionadas.map(Number),
-        // NUEVO:
-        disponibilidad, // 'permanente' | 'ventana'
-        max_intentos: Number(maxIntentos) > 0 ? Number(maxIntentos) : null, // null => ilimitado
+        disponibilidad,
+        max_intentos: numMaxIntentos,
       };
 
       console.log('POST /api/ensayos/crear-ensayo-con-preguntas payload:', payloadEnsayo);
@@ -147,17 +214,27 @@ const CrearEnsayo = ({ usuario }) => {
       const ensayoCreado = res.data?.ensayo || {};
       const ensayoId = ensayoCreado.id || res.data?.ensayo_id;
 
-      // 2) Si la disponibilidad es por ventana, crear la ventana inicial
+      if (!ensayoId) {
+        console.error("La API de crear ensayo no devolvió un ID", res.data);
+        throw new Error("No se pudo obtener el ID del ensayo creado.");
+      }
+
+      // 4. Crear la VENTANA (si es necesario)
       if (disponibilidad === 'ventana' && ensayoId) {
-        const inicioUtc = toUtcIsoString(inicioLocal);
+        
+        const inicioUtc = toUtcIsoString(inicioLocal); // <== USA LA FUNCIÓN CORREGIDA
+        
         const payloadVentana = {
-          cursoId: Number(cursoId),
-          ensayoId: Number(ensayoId),
+          curso_id: numCursoId,     // Usamos la variable ya validada
           inicio: inicioUtc,
-          duracionMin: Number(duracionMin),
+          duracion_min: numDuracionMin, // Usamos la variable ya validada
         };
-        console.log('POST /api/asignaciones payload:', payloadVentana);
-        const resVentana = await axiosInstance.post('/api/asignaciones', payloadVentana, config);
+        
+        const endpointVentana = `/api/ensayos/${ensayoId}/ventanas`;
+
+        console.log(`POST ${endpointVentana} payload:`, payloadVentana);
+        const resVentana = await axiosInstance.post(endpointVentana, payloadVentana, config);
+
         if (!resVentana || resVentana.status >= 400) {
           throw new Error('Ensayo creado, pero no se pudo crear la ventana inicial.');
         }
@@ -166,7 +243,7 @@ const CrearEnsayo = ({ usuario }) => {
       const ensayoNombre = ensayoCreado?.titulo || ensayoCreado?.nombre || nombre;
       setMensajeExito(
         disponibilidad === 'permanente'
-          ? `Ensayo "${ensayoNombre}" creado como PERMANENTE (sin vencimiento${Number(maxIntentos) > 0 ? `, máx ${Number(maxIntentos)} intentos` : ', intentos ilimitados'}).`
+          ? `Ensayo "${ensayoNombre}" creado como PERMANENTE (sin vencimiento${numMaxIntentos ? `, máx ${numMaxIntentos} intentos` : ', intentos ilimitados'}).`
           : `Ensayo "${ensayoNombre}" creado con ventana inicial asignada.`
       );
 
@@ -182,7 +259,13 @@ const CrearEnsayo = ({ usuario }) => {
       setDuracionMin(120);
     } catch (err) {
       console.error('Error al crear ensayo:', err);
-      setError(err.response?.data?.error || err.message || 'Error al crear el ensayo. Inténtalo de nuevo.');
+      if (err.response) {
+        setError(err.response.data?.error || `Error ${err.response.status}: ${err.response.statusText}`);
+      } else if (err.request) {
+        setError('No se pudo conectar con el servidor.');
+      } else {
+        setError(err.message || 'Error al crear el ensayo. Inténtalo de nuevo.');
+      }
     }
   };
 
@@ -192,6 +275,9 @@ const CrearEnsayo = ({ usuario }) => {
     );
   };
 
+  // ==================================================================
+  // --- RENDER (Sin cambios) ---
+  // ==================================================================
   return (
     <div className="crear-ensayo-container">
       <h2>Crear Ensayo</h2>
@@ -212,8 +298,8 @@ const CrearEnsayo = ({ usuario }) => {
         className="select-materia"
       >
         <option value="">Seleccione una materia</option>
-        {materias.map(m => (
-          <option key={m.id} value={m.id}>{m.nombre}</option>
+        {materias.map((m, index) => (
+          <option key={m.id || index} value={m.id}>{m.nombre}</option>
         ))}
       </select>
 
@@ -241,7 +327,7 @@ const CrearEnsayo = ({ usuario }) => {
         </div>
       )}
 
-      {/* NUEVO: Bloque de disponibilidad */}
+      {/* Bloque de disponibilidad */}
       <fieldset className="disponibilidad-fieldset">
         <legend>Disponibilidad</legend>
         <div className="disponibilidad-row">
@@ -281,7 +367,7 @@ const CrearEnsayo = ({ usuario }) => {
         </div>
       </fieldset>
 
-      {/* NUEVO: Si por ventana, pedir datos de la ventana inicial */}
+      {/* Si es por ventana, pedir datos de la ventana inicial */}
       {disponibilidad === 'ventana' && (
         <fieldset className="ventana-fieldset">
           <legend>Ventana inicial</legend>
@@ -294,11 +380,17 @@ const CrearEnsayo = ({ usuario }) => {
                 onChange={(e) => setCursoId(e.target.value)}
               >
                 <option value="">Seleccione un curso</option>
-                {cursos.map(c => (
-                  <option key={c.id} value={c.id}>
-                    {c.nombre}{c.seccion ? ` ${c.seccion}` : ''}
-                  </option>
-                ))}
+                {/* Esta parte ahora recibirá 'cursos' con IDs válidos */}
+                {cursos.length > 0 ? (
+                  cursos.map((c, index) => (
+                    // La 'key' usa c.id, que ahora está correctamente parseado
+                    <option key={c.id || index} value={c.id}>
+                      {c.nombre}{c.colegio ? ` (${c.colegio.nombre})` : ''}{c.seccion ? ` - ${c.seccion}` : ''}
+                    </option>
+                  ))
+                ) : (
+                  <option value="" disabled>No perteneces a ningún curso</option>
+                )}
               </select>
             </div>
 

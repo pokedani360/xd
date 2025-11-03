@@ -1,65 +1,310 @@
-/* Estilos generales del contenedor */
+/* ========================================= */
+/* --- VARIABLES GLOBALES (PALETA Y ESTILOS) --- */
+/* ========================================= */
+:root {
+  /* Colores Principales */
+  --color-primary: #007bff;
+  --color-primary-hover: #0056b3;
+  --color-danger: #dc3545;
+  --color-danger-hover: #c82333;
+  --color-success: #28a745;
+  --color-success-hover: #218838;
+  --color-info: #17a2b8;
+  --color-info-hover: #138496;
+  --color-warning: #ffc107;
+  --color-warning-hover: #e0a800;
+  --color-secondary: #6c757d;
+  --color-secondary-hover: #5a6268;
+  --color-light-gray: #f0f0f0;
+  --color-light-gray-hover: #e0e0e0;
+
+  /* Colores de Fondo y Texto */
+  --color-bg-page: #f9f9f9;
+  --color-bg-container: #fff;
+  --color-bg-inset: #fafafa;
+  --color-text-primary: #333;
+  --color-text-secondary: #555;
+  --color-text-dark: #444;
+  --color-text-white: #fff;
+  
+  /* Colores de Borde */
+  --color-border-light: #eee;
+  --color-border-medium: #e5e5e5;
+  --color-border-dark: #ccc;
+  --color-border-dashed: #ddd;
+
+  /* Colores de Mensajes */
+  --color-msg-success-bg: #d4edda;
+  --color-msg-success-text: #155724;
+  --color-msg-success-border: #c3e6cb;
+  --color-msg-error-bg: #f8d7da;
+  --color-msg-error-text: #721c24;
+  --color-msg-error-border: #f5c6cb;
+  
+  /* Sombras y Bordes */
+  --border-radius-sm: 5px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 10px;
+  --box-shadow-lg: 0 6px 12px rgba(0,0,0,0.15);
+  --box-shadow-md: 0 2px 5px rgba(0,0,0,0.1);
+  --box-shadow-modal: 0 5px 20px rgba(0,0,0,0.3);
+  --box-shadow-inset: inset 0 1px 3px rgba(0,0,0,0.05);
+
+  /* Transiciones */
+  --transition-fast: background-color 0.2s ease;
+  
+  /* Tipografía */
+  --font-family-base: 'Arial', sans-serif;
+}
+
+/* ========================================= */
+/* --- ESTILOS GENERALES Y CONTENEDOR --- */
+/* ========================================= */
 .modificar-ensayos-container {
   max-width: 800px;
   margin: 30px auto;
   padding: 30px;
-  background-color: #f9f9f9;
-  border-radius: 10px;
-  box-shadow: 0 6px 12px rgba(0,0,0,0.15);
-  font-family: 'Arial', sans-serif;
-  color: #333;
+  background-color: var(--color-bg-page);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--box-shadow-lg);
+  font-family: var(--font-family-base);
+  color: var(--color-text-primary);
 }
 
 .modificar-ensayos-container h2 {
   text-align: center;
-  color: #333;
+  color: var(--color-text-primary);
   margin-bottom: 25px;
   font-size: 2.2em;
-  border-bottom: 2px solid #eee;
+  border-bottom: 2px solid var(--color-border-light);
   padding-bottom: 10px;
 }
 
 .modificar-ensayos-container h3,
 .modificar-ensayos-container h4 {
-  color: #555;
+  color: var(--color-text-secondary);
   margin-top: 25px;
   margin-bottom: 15px;
 }
 
-/* Mensajes de estado */
+/* ========================================= */
+/* --- MENSAJES DE ESTADO --- */
+/* ========================================= */
 .loading-message {
   text-align: center;
-  color: #007bff;
+  color: var(--color-primary);
   font-weight: bold;
   margin-bottom: 15px;
 }
 
-.error-message {
-  background-color: #f8d7da;
-  color: #721c24;
-  border: 1px solid #f5c6cb;
+.error-message,
+.success-message {
+  border: 1px solid transparent;
   padding: 10px 15px;
   margin-bottom: 15px;
-  border-radius: 5px;
+  border-radius: var(--border-radius-sm);
   text-align: center;
+}
+
+.error-message {
+  background-color: var(--color-msg-error-bg);
+  color: var(--color-msg-error-text);
+  border-color: var(--color-msg-error-border);
 }
 
 .success-message {
-  background-color: #d4edda;
-  color: #155724;
-  border: 1px solid #c3e6cb;
-  padding: 10px 15px;
-  margin-bottom: 15px;
-  border-radius: 5px;
-  text-align: center;
+  background-color: var(--color-msg-success-bg);
+  color: var(--color-msg-success-text);
+  border-color: var(--color-msg-success-border);
 }
 
-/* Sección de lista de ensayos */
+/* ========================================= */
+/* --- ESTILOS DE FORMULARIOS (Inputs, Selects, Labels) --- */
+/* ========================================= */
+
+/* Estilos comunes para inputs y selects */
+.edit-details-form input[type="text"],
+.edit-details-form input[type="number"],
+.edit-details-form select,
+.add-question-section select,
+.ventana-edit-form input,
+.ventana-edit-form select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid var(--color-border-dark);
+  border-radius: var(--border-radius-sm);
+  font-size: 1em;
+  box-sizing: border-box; /* Asegura que el padding no rompa el ancho */
+}
+
+/* Ajuste específico para inputs de modal */
+.ventana-edit-form input,
+.ventana-edit-form select {
+  padding: 12px;
+}
+
+/* Inputs más pequeños */
+.input-small {
+  width: 120px !important; /* !important para sobreescribir el 100% */
+}
+
+/* Labels */
+.edit-details-form label {
+  display: block;
+  margin-bottom: 15px;
+  font-weight: bold;
+  color: var(--color-text-dark);
+}
+
+.ventana-edit-form label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-weight: bold;
+  font-size: 0.95em;
+}
+
+/* Grupos de Formulario (Radio) */
+.form-group {
+  margin-bottom: 15px;
+}
+
+.radio-group {
+  display: flex;
+  gap: 20px;
+  margin-top: 8px;
+}
+
+.radio-group label {
+  font-weight: normal;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 0; /* Sobreescribe el label general */
+}
+
+/* ========================================= */
+/* --- BOTONES --- */
+/* ========================================= */
+
+/* Botones de acción pequeños (Editar, Eliminar) */
+.ensayo-actions .btn-editar,
+.ensayo-actions .btn-eliminar,
+.ventana-actions .btn-editar-ventana,
+.ventana-actions .btn-eliminar-ventana {
+  padding: 8px 12px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  font-size: 0.9em;
+  transition: var(--transition-fast);
+  color: var(--color-text-white);
+}
+
+.ensayo-actions .btn-editar,
+.ventana-actions .btn-editar-ventana {
+  background-color: var(--color-primary);
+}
+.ensayo-actions .btn-editar:hover,
+.ventana-actions .btn-editar-ventana:hover {
+  background-color: var(--color-primary-hover);
+}
+
+.ensayo-actions .btn-eliminar,
+.ventana-actions .btn-eliminar-ventana {
+  background-color: var(--color-danger);
+}
+.ensayo-actions .btn-eliminar:hover,
+.ventana-actions .btn-eliminar-ventana:hover {
+  background-color: var(--color-danger-hover);
+}
+
+.ensayo-actions .btn-editar,
+.ensayo-actions .btn-eliminar {
+  margin-left: 10px;
+}
+
+/* Botones de formulario (Guardar, Volver, Añadir, Crear) */
+.ensayo-edit-form .btn-back {
+  background-color: var(--color-secondary);
+  color: var(--color-text-white);
+  padding: 10px 15px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  margin-bottom: 20px;
+  transition: var(--transition-fast);
+}
+.ensayo-edit-form .btn-back:hover {
+  background-color: var(--color-secondary-hover);
+}
+
+.edit-details-form .btn-guardar-cambios {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  background-color: var(--color-success);
+  color: var(--color-text-white);
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: 1.1em;
+  cursor: pointer;
+  transition: var(--transition-fast);
+  margin-top: 20px;
+}
+.edit-details-form .btn-guardar-cambios:hover {
+  background-color: var(--color-success-hover);
+}
+
+.add-question-section .btn-add-question,
+.btn-crear-ventana {
+  background-color: var(--color-info);
+  color: var(--color-text-white);
+  padding: 10px 15px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+.add-question-section .btn-add-question:hover:not(:disabled),
+.btn-crear-ventana:hover {
+  background-color: var(--color-info-hover);
+}
+.add-question-section .btn-add-question:disabled {
+  background-color: var(--color-border-dark);
+  cursor: not-allowed;
+}
+
+.btn-crear-ventana {
+  display: block;
+  width: 100%;
+  padding: 12px;
+  font-size: 1.05em;
+  margin-top: 20px;
+}
+
+.current-questions-list .btn-remove-question {
+  background-color: var(--color-warning);
+  color: var(--color-text-primary);
+  padding: 5px 10px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: var(--transition-fast);
+}
+.current-questions-list .btn-remove-question:hover {
+  background-color: var(--color-warning-hover);
+}
+
+/* ========================================= */
+/* --- SECCIÓN: LISTA DE ENSAYOS --- */
+/* ========================================= */
 .ensayos-list-section {
-  background-color: #fff;
+  background-color: var(--color-bg-container);
   padding: 20px;
-  border-radius: 8px;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.05);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--box-shadow-inset);
 }
 
 .ensayos-list {
@@ -72,15 +317,15 @@
   justify-content: space-between;
   align-items: center;
   padding: 12px 15px;
-  border-bottom: 1px solid #eee;
-  background-color: #fefefe;
+  border-bottom: 1px solid var(--color-border-light);
+  background-color: var(--color-text-light);
   margin-bottom: 5px;
-  border-radius: 5px;
-  transition: background-color 0.2s ease;
+  border-radius: var(--border-radius-sm);
+  transition: var(--transition-fast);
 }
 
 .ensayo-item:hover {
-  background-color: #f0f0f0;
+  background-color: var(--color-light-gray);
 }
 
 .ensayo-item:last-child {
@@ -90,103 +335,53 @@
 .ensayo-item span {
   font-size: 1.05em;
   font-weight: bold;
-  color: #444;
+  color: var(--color-text-dark);
 }
 
-.ensayo-actions .btn-editar,
-.ensayo-actions .btn-eliminar {
-  padding: 8px 12px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 0.9em;
-  margin-left: 10px;
-  transition: background-color 0.2s ease;
+.ensayo-actions {
+  flex-shrink: 0; /* Evita que los botones se compriman en vistas pequeñas */
 }
 
-.ensayo-actions .btn-editar {
-  background-color: #007bff;
-  color: white;
-}
-
-.ensayo-actions .btn-editar:hover {
-  background-color: #0056b3;
-}
-
-.ensayo-actions .btn-eliminar {
-  background-color: #dc3545;
-  color: white;
-}
-
-.ensayo-actions .btn-eliminar:hover {
-  background-color: #c82333;
-}
-
-/* Formulario de edición de ensayo */
+/* ========================================= */
+/* --- SECCIÓN: FORMULARIO DE EDICIÓN --- */
+/* ========================================= */
 .ensayo-edit-form {
-  background-color: #fff;
+  background-color: var(--color-bg-container);
   padding: 25px;
-  border-radius: 8px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--box-shadow-md);
   margin-top: 25px;
 }
 
-.ensayo-edit-form .btn-back {
-  background-color: #6c757d;
-  color: white;
-  padding: 10px 15px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  margin-bottom: 20px;
-  transition: background-color 0.2s ease;
+.edit-section {
+  margin-top: 25px;
+  border-top: 2px solid var(--color-light-gray);
+  padding-top: 25px;
 }
 
-.ensayo-edit-form .btn-back:hover {
-  background-color: #5a6268;
+.edit-section fieldset {
+  border: 1px solid var(--color-border-dashed);
+  border-radius: var(--border-radius-md);
+  padding: 20px;
+  background-color: var(--color-bg-inset);
 }
 
-.edit-details-form label {
-  display: block;
-  margin-bottom: 15px;
+.edit-section legend {
+  font-size: 1.2em;
   font-weight: bold;
-  color: #444;
+  color: var(--color-text-primary);
+  padding: 0 10px;
+  margin-left: 10px;
 }
 
-.edit-details-form input[type="text"],
-.edit-details-form select {
-  width: calc(100% - 22px);
-  padding: 10px;
-  margin-top: 5px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 1em;
-  box-sizing: border-box;
-}
-
-.edit-details-form .btn-guardar-cambios {
-  display: block;
-  width: 100%;
-  padding: 12px;
-  background-color: #28a745;
-  color: white;
-  border: none;
-  border-radius: 5px;
-  font-size: 1.1em;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-  margin-top: 20px;
-}
-
-.edit-details-form .btn-guardar-cambios:hover {
-  background-color: #218838;
-}
-
-/* Sección de preguntas actuales */
-.current-questions-section {
+/* ========================================= */
+/* --- SECCIÓN: GESTIÓN DE PREGUNTAS --- */
+/* ========================================= */
+.current-questions-section,
+.add-question-section {
   margin-top: 30px;
   padding-top: 20px;
-  border-top: 1px dashed #eee;
+  border-top: 1px dashed var(--color-border-light);
 }
 
 .current-questions-list {
@@ -194,8 +389,9 @@
   padding: 0;
   max-height: 200px;
   overflow-y: auto;
-  border: 1px solid #f0f0f0;
-  border-radius: 5px;
+  border: 1px solid var(--color-light-gray);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-bg-container);
 }
 
 .current-questions-list li {
@@ -203,7 +399,7 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 15px;
-  border-bottom: 1px dotted #e5e5e5;
+  border-bottom: 1px dotted var(--color-border-medium);
 }
 
 .current-questions-list li:last-child {
@@ -213,57 +409,142 @@
 .current-questions-list li span {
   flex-grow: 1;
   margin-right: 15px;
+  line-height: 1.4;
 }
 
-.current-questions-list .btn-remove-question {
-  background-color: #ffc107;
-  color: #343a40;
-  padding: 5px 10px;
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.current-questions-list .btn-remove-question:hover {
-  background-color: #e0a800;
-}
-
-/* Sección para añadir preguntas */
 .add-question-section {
-  margin-top: 30px;
-  padding-top: 20px;
-  border-top: 1px dashed #eee;
   display: flex;
   flex-direction: column;
   gap: 15px;
 }
 
-.add-question-section select {
+/* ========================================= */
+/* --- SECCIÓN: GESTIÓN DE VENTANAS (Ensayo) --- */
+/* ========================================= */
+.ventana-management-section .ventanas-list {
+  list-style: none;
+  padding: 0;
+  margin-top: 15px;
+}
+
+.ventana-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: var(--color-bg-container);
+  padding: 15px;
+  border: 1px solid var(--color-border-medium);
+  border-radius: var(--border-radius-md);
+  margin-bottom: 10px;
+}
+
+.ventana-item div:first-child {
+  line-height: 1.5;
+  font-size: 0.95em;
+  color: var(--color-text-primary);
+}
+
+.ventana-item strong {
+  color: #111; /* Un poco más oscuro que el primario */
+}
+
+.ventana-actions {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* ========================================= */
+/* --- COMPONENTE: MODAL DE VENTANAS --- */
+/* ========================================= */
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.modal-content {
+  background-color: var(--color-bg-container);
+  padding: 30px;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--box-shadow-modal);
   width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 5px;
-  font-size: 1em;
-  box-sizing: border-box;
+  max-width: 500px;
+  position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
 }
 
-.add-question-section .btn-add-question {
-  background-color: #17a2b8;
-  color: white;
-  padding: 10px 15px;
+.modal-content .close-button {
+  position: absolute;
+  top: 15px;
+  right: 20px;
+  background: none;
   border: none;
-  border-radius: 5px;
+  font-size: 2.2em;
+  color: #aaa;
   cursor: pointer;
-  transition: background-color 0.2s ease;
+  line-height: 1;
+}
+.modal-content .close-button:hover {
+  color: var(--color-text-primary);
 }
 
-.add-question-section .btn-add-question:hover:not(:disabled) {
-  background-color: #138496;
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 25px;
+  text-align: center;
+  font-size: 1.6em;
+  color: var(--color-text-primary);
 }
 
-.add-question-section .btn-add-question:disabled {
-  background-color: #cccccc;
-  cursor: not-allowed;
+.ventana-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 25px;
+  border-top: 1px solid var(--color-border-light);
+  padding-top: 20px;
+}
+
+.modal-actions .btn-cancelar,
+.modal-actions .btn-guardar-cambios {
+  padding: 10px 20px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: 1em;
+  font-weight: bold;
+  cursor: pointer;
+  transition: var(--transition-fast);
+}
+
+.modal-actions .btn-cancelar {
+  background-color: var(--color-light-gray);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border-dark);
+}
+.modal-actions .btn-cancelar:hover {
+  background-color: var(--color-light-gray-hover);
+}
+
+.modal-actions .btn-guardar-cambios {
+  background-color: var(--color-success);
+  color: var(--color-text-white);
+}
+.modal-actions .btn-guardar-cambios:hover {
+  background-color: var(--color-success-hover);
+}

@@ -1,7 +1,7 @@
 /* eslint-disable no-console */
 const express = require('express');
 const router = express.Router();
-const pool = require('../db'); 
+const pool = require('../db');
 const verificarToken = require('../../_common/middleware/verifyToken');
 const authorizeRoles = require('../../_common/middleware/authorizeRoles');
 
@@ -9,7 +9,7 @@ const authorizeRoles = require('../../_common/middleware/authorizeRoles');
 // ---
 router.post('/rendiciones', verificarToken, authorizeRoles(['alumno']), async (req, res) => {
     const { ventana_id, ensayo_id } = req.body;
-    const alumno_id = req.usuario.id; // Usamos req.usuario de tu middleware
+    const alumno_id = req.usuario.id; // Usamos req.usuario.id (proviene de verifyToken)
 
     if ((!ventana_id && !ensayo_id) || (ventana_id && ensayo_id)) {
         return res.status(400).json({ error: 'Debes proporcionar un "ventana_id" o un "ensayo_id", pero no ambos.' });
@@ -21,8 +21,9 @@ router.post('/rendiciones', verificarToken, authorizeRoles(['alumno']), async (r
 
         if (ventana_id) {
             // --- Lógica para ENSAYO POR VENTANA ---
+            // (CORREGIDO: Traemos max_intentos del ensayo)
             const ventanaResult = await client.query(
-                `SELECT vr.inicio, vr.fin, vr.curso_id, e.id as ensayo_id
+                `SELECT vr.inicio, vr.fin, vr.curso_id, e.id as ensayo_id, e.max_intentos
                  FROM ventanas_rendicion vr JOIN ensayos e ON vr.ensayo_id = e.id
                  WHERE vr.id = $1`, [ventana_id]
             );
@@ -44,11 +45,29 @@ router.post('/rendiciones', verificarToken, authorizeRoles(['alumno']), async (r
                 await client.query('ROLLBACK');
                 return res.status(403).json({ error: 'No tienes permiso para rendir esta evaluación.' });
             }
-
-            const intentoPrevio = await client.query(`SELECT 1 FROM resultados WHERE alumno_id = $1 AND ventana_id = $2`, [alumno_id, ventana_id]);
-            if (intentoPrevio.rowCount > 0) {
-                await client.query('ROLLBACK');
-                return res.status(409).json({ error: 'Ya has completado un intento para esta evaluación.' });
+            
+            // (CORREGIDO: Lógica de intentos para "ventana" ahora cuenta)
+            if (ventana.max_intentos !== null) {
+                // Contamos intentos para ESE ensayo (ventana.ensayo_id)
+                const intentosResult = await client.query(
+                    `SELECT COUNT(*) as num_intentos 
+                     FROM resultados 
+                     WHERE alumno_id = $1 AND ensayo_id = $2`, 
+                    [alumno_id, ventana.ensayo_id]
+                );
+                
+                if (parseInt(intentosResult.rows[0].num_intentos, 10) >= ventana.max_intentos) {
+                    await client.query('ROLLBACK');
+                    return res.status(409).json({ error: 'Has alcanzado el límite de intentos para este ensayo.' });
+                }
+            } else {
+                // Si max_intentos es NULL (ilimitado por el docente),
+                // asumimos que las ventanas son de 1 solo intento por defecto.
+                const intentoPrevio = await client.query(`SELECT 1 FROM resultados WHERE alumno_id = $1 AND ventana_id = $2`, [alumno_id, ventana_id]);
+                if (intentoPrevio.rowCount > 0) {
+                    await client.query('ROLLBACK');
+                    return res.status(409).json({ error: 'Ya has completado un intento para esta evaluación.' });
+                }
             }
 
             const resultadoResult = await client.query(`INSERT INTO resultados (ensayo_id, alumno_id, fecha, ventana_id) VALUES ($1, $2, NOW(), $3) RETURNING id`, [ventana.ensayo_id, alumno_id, ventana_id]);
@@ -56,7 +75,7 @@ router.post('/rendiciones', verificarToken, authorizeRoles(['alumno']), async (r
             return res.status(201).json({ mensaje: 'Rendición iniciada.', resultado_id: resultadoResult.rows[0].id });
 
         } else if (ensayo_id) {
-            // --- Lógica para ENSAYO PERMANENTE ---
+            // --- Lógica para ENSAYO PERMANENTE (Estaba correcta) ---
             const ensayoResult = await client.query(`SELECT disponibilidad, max_intentos FROM ensayos WHERE id = $1`, [ensayo_id]);
             if (ensayoResult.rowCount === 0) {
                 await client.query('ROLLBACK');
@@ -90,6 +109,30 @@ router.post('/rendiciones', verificarToken, authorizeRoles(['alumno']), async (r
         client.release();
     }
 });
+
+// Endpoint para que el alumno obtenga sus intentos (para VerEnsayos.jsx)
+router.get('/mis-resultados', verificarToken, authorizeRoles(['alumno']), async (req, res) => {
+    // (CORREGIDO: Estandarizado para usar .id primero)
+    const alumno_id = n(req.usuario?.id) ?? n(req.usuario?.uid) ?? n(req.user?.uid); 
+
+    if (!alumno_id) {
+        return res.status(401).json({ error: 'Token de alumno inválido o no encontrado.' });
+    }
+
+    try {
+        const { rows } = await pool.query(
+            `SELECT id, ensayo_id, ventana_id, fecha 
+             FROM resultados 
+             WHERE alumno_id = $1`,
+            [alumno_id]
+        );
+        res.status(200).json(rows);
+    } catch (error) {
+        console.error('💥 Error en /mis-resultados:', error);
+        res.status(500).json({ error: 'Error interno del servidor.', detalle: error.message });
+    }
+});
+
 // Helpers
 function n(x) {
   const v = Number(x);
@@ -100,8 +143,9 @@ function pickAlumnoId(req) {
   return (
     n(req.body?.alumno_id) ??
     n(req.query?.alumno_id) ??
-    n(req.usuario?.uid) ??   // <- tu verifyToken coloca aquí el payload
-    n(req.user?.uid)         // <- alias de compatibilidad
+    n(req.usuario?.id) ?? // <-- CORREGIDO (prefiriendo .id)
+    n(req.usuario?.uid) ??   
+    n(req.user?.uid)     
   );
 }
 
@@ -127,14 +171,10 @@ function isDocenteOrAdmin(req) {
   return r === 'docente' || r === 'admin';
 }
 
-/**
- * alumnoId a consultar, según rol:
- * - Alumno: SIEMPRE su propio uid (ignora overrides para seguridad).
- * - Docente/Admin: usa el que venga por body/query si existe; si no viene, devuelve null.
- */
 function pickAlumnoIdForQuery(req) {
   if (isAlumno(req)) {
-    return n(req.usuario?.uid) ?? n(req.user?.uid) ?? null;
+    // (CORREGIDO: Estandarizado para usar .id primero)
+    return n(req.usuario?.id) ?? n(req.usuario?.uid) ?? n(req.user?.uid);
   }
   return n(req.body?.alumno_id) ?? n(req.query?.alumno_id) ?? null;
 }
@@ -148,7 +188,8 @@ async function verResultadosHandler(req, res) {
 
     // Alumno: lista SOLO los suyos (uid del token)
     if (isAlumno(req)) {
-      const alumnoId = n(req.usuario?.uid) ?? n(req.user?.uid);
+      // (CORREGIDO: Estandarizado para usar .id primero)
+      const alumnoId = n(req.usuario?.id) ?? n(req.usuario?.uid) ?? n(req.user?.uid);
       if (!alumnoId) return res.status(401).json({ error: 'invalid_token_payload' });
 
       const q = await pool.query(
@@ -158,8 +199,8 @@ async function verResultadosHandler(req, res) {
                 r.puntaje,
                 r.fecha
            FROM resultados r
-           JOIN ensayos   e ON e.id = r.ensayo_id
-           JOIN materias  m ON m.id = e.materia_id
+           JOIN ensayos    e ON e.id = r.ensayo_id
+           JOIN materias   m ON m.id = e.materia_id
           WHERE r.alumno_id = $1
           ORDER BY r.fecha DESC`,
         [alumnoId]
@@ -170,11 +211,6 @@ async function verResultadosHandler(req, res) {
     // Docente/Admin: puede filtrar por alumno_id (opcional)
     const alumnoId = pickAlumnoIdForQuery(req);
 
-    // Puedes decidir la política:
-    // a) Requerir alumno_id para no listar todo el universo:
-    // if (!alumnoId) return res.status(400).json({ error: 'alumno_id requerido para docentes' });
-
-    // b) O permitir listar todo (con datos del alumno). Te dejo ambas variantes:
     if (alumnoId) {
       const q = await pool.query(
         `SELECT r.id         AS resultado_id,
@@ -185,16 +221,16 @@ async function verResultadosHandler(req, res) {
                 u.nombre     AS alumno_nombre,
                 u.correo     AS alumno_correo
            FROM resultados r
-           JOIN ensayos   e ON e.id = r.ensayo_id
-           JOIN materias  m ON m.id = e.materia_id
-           LEFT JOIN usuarios u ON u.id = r.alumno_id   -- ajusta si tu tabla de usuarios se llama distinto
+           JOIN ensayos    e ON e.id = r.ensayo_id
+           JOIN materias   m ON m.id = e.materia_id
+           LEFT JOIN usuarios u ON u.id = r.alumno_id  -- ajusta si tu tabla de usuarios se llama distinto
           WHERE r.alumno_id = $1
           ORDER BY r.fecha DESC`,
         [alumnoId]
       );
       return res.json(q.rows);
     } else {
-      // Variante “listar todo” para docentes/admin (si prefieres, comenta esto y usa la opción (a) arriba)
+      // Variante “listar todo” para docentes/admin
       const q = await pool.query(
         `SELECT r.id         AS resultado_id,
                 e.nombre     AS ensayo_nombre,
@@ -204,11 +240,11 @@ async function verResultadosHandler(req, res) {
                 u.nombre     AS alumno_nombre,
                 u.correo     AS alumno_correo
            FROM resultados r
-           JOIN ensayos   e ON e.id = r.ensayo_id
-           JOIN materias  m ON m.id = e.materia_id
+           JOIN ensayos    e ON e.id = r.ensayo_id
+           JOIN materias   m ON m.id = e.materia_id
            LEFT JOIN usuarios u ON u.id = r.alumno_id
           ORDER BY r.fecha DESC
-          LIMIT 500`  // evita respuestas gigantes; ajusta según necesidad
+          LIMIT 500`
       );
       return res.json(q.rows);
     }
@@ -255,75 +291,109 @@ router.post('/crear-resultado', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// NUEVO: GET /ver-detalle-resultado?resultado_id=123
-// Devuelve la grilla de preguntas + tu respuesta + la correcta + flag correcta
-// Estructura que espera el front:
-// [
-//   {
-//     pregunta_id,
-//     texto,
-//     opcion_a, opcion_b, opcion_c, opcion_d,
-//     respuesta_dada_id,       // 'A'|'B'|'C'|'D' o null
-//     respuesta_correcta_id,   // 'A'|'B'|'C'|'D'
-//     correcta                 // true|false
-//   },
-//   ...
-// ]
+// (INICIO DE LA CORRECCIÓN: Funcionalidad /ver-detalle-resultado)
 // ─────────────────────────────────────────────────────────────
-// ===== Nuevo: POST /ver-detalle-resultado (compat con el front) =====
-router.post('/ver-detalle-resultado', async (req, res) => {
-  const rid = n(req.body?.resultado_id);
-  if (!rid) return res.status(400).json({ error: 'resultado_id requerido' });
 
-  const rol = getRole(req);
-  const alumnoIdToken = n(req.usuario?.uid) ?? n(req.user?.uid) ?? null;
-
-  try {
-    // 1) Verifica que el resultado exista (y trae alumno_id + ensayo_id)
-    const qr = await pool.query(
-      'SELECT alumno_id, ensayo_id FROM resultados WHERE id = $1',
-      [rid]
-    );
-    if (!qr.rows.length) return res.status(404).json({ error: 'Resultado no existe' });
-
-    const { alumno_id: alumnoIdDb, ensayo_id: ensayoId } = qr.rows[0];
-
-    // Regla de acceso (igual que en GET)
-    if (rol === 'alumno') {
-      if (!alumnoIdToken || alumnoIdDb !== alumnoIdToken) {
-        return res.status(403).json({ error: 'forbidden' });
-      }
+// 1. Lógica de negocio (reutilizable)
+async function getDetalleResultado(resultado_id, alumnoIdToken) {
+    const rid = n(resultado_id);
+    if (!rid) {
+        throw { status: 400, error: 'resultado_id requerido' };
     }
 
-    // 2) Traer detalle (igual que en GET)
-    const q = await pool.query(
-      `SELECT
-         p.id                        AS pregunta_id,
-         p.enunciado                 AS texto,
-         p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d,
-         p.respuesta_correcta        AS respuesta_correcta_id,
-         r.respuesta_dada            AS respuesta_dada_id,
-         COALESCE(r.correcta, false) AS correcta
-       FROM ensayo_pregunta ep
-       JOIN preguntas p ON p.id = ep.pregunta_id
-       LEFT JOIN respuestas r
-         ON r.resultado_id = $1
-        AND r.pregunta_id  = p.id
-       WHERE ep.ensayo_id = $2
-       ORDER BY ep.pregunta_id ASC`,
-      [rid, ensayoId]
-    );
+    // Si alumnoIdToken tiene un valor, asumimos rol 'alumno'
+    const rol = alumnoIdToken ? 'alumno' : 'docente'; 
 
-    return res.json(q.rows);
+    try {
+        // 1) Verifica que el resultado exista (y trae alumno_id + ensayo_id)
+        const qr = await pool.query(
+            'SELECT alumno_id, ensayo_id FROM resultados WHERE id = $1',
+            [rid]
+        );
+        if (!qr.rows.length) {
+            throw { status: 404, error: 'Resultado no existe' };
+        }
+
+        const { alumno_id: alumnoIdDb, ensayo_id: ensayoId } = qr.rows[0];
+
+        // Regla de acceso
+        if (rol === 'alumno') {
+            if (!alumnoIdToken || alumnoIdDb !== alumnoIdToken) {
+                throw { status: 403, error: 'forbidden' };
+            }
+        }
+        // (Docente/Admin puede ver todo)
+
+        // 2) Traer detalle
+        // (CORREGIDO: Se eliminó la 'M' y la 'S' sobrantes de la consulta SQL)
+        const q = await pool.query(
+            `SELECT
+                p.id                      AS pregunta_id, 
+                p.enunciado               AS texto,
+                p.opcion_a, p.opcion_b, p.opcion_c, p.opcion_d,
+                p.respuesta_correcta      AS respuesta_correcta_id,
+                r.respuesta_dada          AS respuesta_dada_id,
+                COALESCE(r.correcta, false) AS correcta
+             FROM ensayo_pregunta ep
+             JOIN preguntas p ON p.id = ep.pregunta_id
+             LEFT JOIN respuestas r
+              ON r.resultado_id = $1
+             AND r.pregunta_id  = p.id
+             WHERE ep.ensayo_id = $2
+             ORDER BY ep.pregunta_id ASC`,
+            [rid, ensayoId]
+        );
+
+        return q.rows; // Devuelve los datos
+    } catch (err) {
+        // Si ya tiene status, lo propaga. Si no, es un 500.
+        if (err.status) throw err; 
+        console.error('💥 /ver-detalle-resultado lógica interna error:', err);
+        throw { status: 500, error: 'server_error' };
+    }
+}
+
+
+// 2. Ruta POST (Ya existía, ahora usa el helper)
+router.post('/ver-detalle-resultado', async (req, res) => {
+  const rid = n(req.body?.resultado_id);
+  // (CORREGIDO: Estandarizado para usar .id primero)
+  const alumnoIdToken = n(req.usuario?.id) ?? n(req.usuario?.uid) ?? n(req.user?.uid);
+
+  try {
+    const detalle = await getDetalleResultado(rid, alumnoIdToken);
+    return res.json(detalle);
   } catch (err) {
     console.error('💥 POST /ver-detalle-resultado error:', err);
-    return res.status(500).json({ error: 'server_error' });
+    return res.status(err.status || 500).json({ error: err.error || 'server_error' });
   }
 });
 
+
+// 3. Ruta GET (La que faltaba, ahora usa el helper)
+router.get('/ver-detalle-resultado', async (req, res) => {
+  // Lee el ID desde req.query (ej: ?resultado_id=2)
+  const rid = n(req.query?.resultado_id);
+  // (CORREGIDO: Estandarizado para usar .id primero)
+  const alumnoIdToken = n(req.usuario?.id) ?? n(req.usuario?.uid) ?? n(req.user?.uid) ?? null;
+
+  try {
+    // Reutiliza la misma lógica de negocio
+    const detalle = await getDetalleResultado(rid, alumnoIdToken);
+    return res.json(detalle);
+  } catch (err) {
+    // Manejo de errores mejorado
+    console.error('💥 GET /ver-detalle-resultado error:', err);
+    return res.status(err.status || 500).json({ error: err.error || 'server_error' });
+  }
+});
 // ─────────────────────────────────────────────────────────────
-// NUEVO: GET /:resultado_id/preguntas-ensayo
-// Devuelve { ensayo: {id,titulo}, preguntas: [...], respuestasPrevias: { [preguntaId]: 'A'|'B'|'C'|'D' } }
+// (FIN DE LA CORRECCIÓN)
+// ─────────────────────────────────────────────────────────────
+
+
+// ─────────────────────────────────────────────────────────────
+// GET /:resultado_id/preguntas-ensayo
 // ─────────────────────────────────────────────────────────────
 router.get('/:resultado_id/preguntas-ensayo', async (req, res) => {
   const rid = n(req.params?.resultado_id);
@@ -336,7 +406,7 @@ router.get('/:resultado_id/preguntas-ensayo', async (req, res) => {
     const qr = await pool.query(
       `SELECT r.id, r.alumno_id, r.ensayo_id, e.nombre AS ensayo_nombre
          FROM resultados r
-         JOIN ensayos   e ON e.id = r.ensayo_id
+         JOIN ensayos    e ON e.id = r.ensayo_id
         WHERE r.id = $1`,
       [rid]
     );
@@ -396,9 +466,7 @@ router.get('/:resultado_id/preguntas-ensayo', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// NUEVO: POST /:resultado_id/responder
-// Body: { pregunta_id, respuesta_dada: 'A'|'B'|'C'|'D' }
-// Guarda/actualiza la respuesta y marca "correcta" según la pregunta.
+// POST /:resultado_id/responder
 // ─────────────────────────────────────────────────────────────
 router.post('/:resultado_id/responder', async (req, res) => {
   const rid = n(req.params?.resultado_id);
@@ -446,7 +514,7 @@ router.post('/:resultado_id/responder', async (req, res) => {
        VALUES ($1, $2, $3, $4)
        ON CONFLICT (resultado_id, pregunta_id)
        DO UPDATE SET respuesta_dada = EXCLUDED.respuesta_dada,
-                     correcta       = EXCLUDED.correcta`,
+                     correcta         = EXCLUDED.correcta`,
       [rid, preguntaId, resp, correcta]
     );
 
@@ -462,8 +530,7 @@ router.post('/:resultado_id/responder', async (req, res) => {
 });
 
 // ─────────────────────────────────────────────────────────────
-// NUEVO: POST /:resultado_id/finalizar
-// Recalcula el puntaje = cantidad de respuestas correctas.
+// POST /:resultado_id/finalizar
 // ─────────────────────────────────────────────────────────────
 router.post('/:resultado_id/finalizar', async (req, res) => {
   const rid = n(req.params?.resultado_id);

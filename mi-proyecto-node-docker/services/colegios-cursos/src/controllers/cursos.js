@@ -96,16 +96,18 @@ export async function unirseCurso(req, res) {
 }
 
 export async function misCursos(req, res) {
-  if (!req.user?.id) return res.status(401).json({ error: "No auth" });
-  const { rows } = await pool.query(
-    `SELECT cm.id as membresia_id, c.id as curso_id, c.nombre, c.anio, c.seccion,
-            cm.rol_en_curso, c.colegio_id
-       FROM curso_miembros cm
-       JOIN cursos c ON c.id = cm.curso_id
-      WHERE cm.usuario_id = $1
-      ORDER BY c.nombre`, [req.user.id]
-  );
-  res.json(rows);
+ if (!req.user?.id) return res.status(401).json({ error: "No auth" });
+ const { rows } = await pool.query(
+  `SELECT cm.id as membresia_id, c.id as curso_id, c.nombre, c.anio, c.seccion,
+      cm.rol_en_curso, c.colegio_id,
+      co.nombre as colegio_nombre
+   FROM curso_miembros cm
+   JOIN cursos c ON c.id = cm.curso_id
+   LEFT JOIN colegios co ON co.id = c.colegio_id
+   WHERE cm.usuario_id = $1
+   ORDER BY c.nombre`, [req.user.id]
+ );
+ res.json(rows);
 }
 
 export async function borrarMembresia(req, res) {

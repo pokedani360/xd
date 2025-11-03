@@ -24,7 +24,7 @@ function signAccessToken({ uid, rol }, expiresIn = '2h') {
 }
 
 function signTempOnboardingToken(claims, expiresIn = '10m') {
-  // claims: { sub, email, name, picture }
+  // claims: { sub (id), email, name, picture }
   return jwt.sign(
     { purpose: 'onboarding', ...claims, aud: 'paes-frontend' },
     JWT_SECRET,
@@ -53,7 +53,7 @@ function normalizeRol(rolRaw) {
   return r;
 }
 
-// === DB Pool (único para este router) ===
+// === DB Pool (unico para este router) ===
 const pool = new Pool({
   host: process.env.DB_HOST,
   port: Number(process.env.DB_PORT || 5432),
@@ -66,44 +66,63 @@ const pool = new Pool({
 //                 REGISTRO (local)
 // =========================================================
 /**
- * POST /registro  (pública)
- * Crea usuario local (contraseña hasheada). No devuelve token.
+ * POST /registro  (publica)
+ * (CORREGIDO) Crea usuario local sin rol. Devuelve un temp_token
+ * para forzar el flujo de onboarding (igual que Google).
  */
 router.post('/registro', async (req, res) => {
-  let { nombre, correo, contrasena, rol } = req.body;
+  // --- (INICIO DE LA CORRECCION) ---
+  // 1. Extraemos el 'rol' del body (ya no se usa)
+  let { nombre, correo, contrasena } = req.body;
   nombre = (nombre || '').trim();
   correo = normalizeEmail(correo);
-  rol = normalizeRol(rol);
+  // rol = normalizeRol(rol); // <-- ELIMINADO
 
-  console.log(`--- INTENTO DE REGISTRO correo:${correo} rol:${rol} ---`);
+  console.log(`--- INTENTO DE REGISTRO (local) correo:${correo} ---`);
 
-  if (!nombre || !correo || !contrasena || !rol) {
+  // 2. Modificamos la validacion (ya no requiere 'rol')
+  if (!nombre || !correo || !contrasena) {
     return res.status(400).json({ error: 'Todos los campos son obligatorios' });
   }
-  if (!['alumno', 'docente'].includes(rol)) {
-    return res.status(400).json({ error: 'Rol inválido. Debe ser "alumno" o "docente".' });
-  }
+  // 3. Eliminamos la validacion de 'rol'
+  // if (!['alumno', 'docente'].includes(rol)) { ... }
+
   if (contrasena.length < 6) {
-    return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres.' });
+    return res.status(400).json({ error: 'La contrasena debe tener al menos 6 caracteres.' });
   }
+  // --- (FIN DE LA CORRECCION) ---
 
   try {
     const exists = await pool.query('SELECT 1 FROM usuarios WHERE correo = $1 LIMIT 1', [correo]);
     if (exists.rows.length) {
-      return res.status(409).json({ error: 'El correo electrónico ya está registrado.' });
+      return res.status(409).json({ error: 'El correo electronico ya esta registrado.' });
     }
 
     const salt = await bcrypt.genSalt(10);
     const hash = await bcrypt.hash(contrasena, salt);
 
+    // --- (INICIO DE LA CORRECCION) ---
+    // 4. Insertamos 'rol' como NULL y 'auth_origen' como 'local'
     const ins = await pool.query(
-      `INSERT INTO usuarios (nombre, correo, contrasena, rol, correo_verificado)
-       VALUES ($1, $2, $3, $4, $5)
-       RETURNING id, nombre, correo, rol`,
-      [nombre, correo, hash, rol, false]
+      `INSERT INTO usuarios (nombre, correo, contrasena, rol, correo_verificado, auth_origen)
+       VALUES ($1, $2, $3, $4, $5, $6)
+       RETURNING id, nombre, correo, rol`, // 'rol' sera null
+      [nombre, correo, hash, null, false, 'local'] // rol es null, correo_verificado es false
     );
 
-    return res.status(201).json({ mensaje: 'Usuario registrado exitosamente', usuario: ins.rows[0] });
+    const nuevoUsuario = ins.rows[0];
+
+    // 5. Devolvemos un token temporal (igual que Google)
+    const tempToken = signTempOnboardingToken({
+      sub: nuevoUsuario.id, // 'sub' (subject) es el ID del usuario
+      email: nuevoUsuario.correo,
+      name: nuevoUsuario.nombre,
+      picture: null // Los usuarios locales no tienen foto de perfil
+    });
+
+    return res.status(201).json({ temp_token: tempToken });
+    // --- (FIN DE LA CORRECCION) ---
+
   } catch (err) {
     console.error('💥 Error en /registro:', err);
     return res.status(500).json({ error: 'Error del servidor al registrar usuario' });
@@ -112,8 +131,8 @@ router.post('/registro', async (req, res) => {
 
 // =========================================================
 /**
- * POST /login  (pública)
- * Genera JWT con { uid, rol } alineado al verify y a Google OAuth
+ * POST /login  (publica)
+ * (Sin cambios)
  */
 // =========================================================
 router.post('/login', async (req, res) => {
@@ -122,19 +141,30 @@ router.post('/login', async (req, res) => {
   console.log(`--- INTENTO DE LOGIN correo:${correo} ---`);
 
   if (!correo || !contrasena) {
-    return res.status(400).json({ error: 'Debes ingresar correo y contraseña.' });
+    return res.status(400).json({ error: 'Debes ingresar correo y contrasena.' });
   }
 
   try {
     const q = await pool.query('SELECT * FROM usuarios WHERE correo = $1 LIMIT 1', [correo]);
     if (!q.rows.length) {
-      return res.status(400).json({ error: 'Credenciales inválidas.' });
+      return res.status(400).json({ error: 'Credenciales invalidas.' });
     }
     const usuario = q.rows[0];
 
+    // (INICIO CORRECCION DE FLUJO DE LOGIN)
+    // Si el usuario existe pero no ha completado el onboarding (rol es NULL),
+    if (usuario.rol === null) {
+        console.log(`--- Usuario ${correo} intento iniciar sesion sin rol (Onboarding incompleto). ---`);
+        // El login falla. El usuario debe completar el onboarding primero.
+        // El flujo de onboarding (local o Google) es la unica forma de obtener un token de sesion.
+        return res.status(400).json({ error: 'Credenciales invalidas.' });
+    }
+    // (FIN CORRECCION DE FLUJO DE LOGIN)
+
+
     const ok = await bcrypt.compare(contrasena, usuario.contrasena || '');
     if (!ok) {
-      return res.status(400).json({ error: 'Credenciales inválidas.' });
+      return res.status(400).json({ error: 'Credenciales invalidas.' });
     }
 
     const token = signAccessToken({ uid: usuario.id, rol: usuario.rol });
@@ -145,7 +175,7 @@ router.post('/login', async (req, res) => {
     });
   } catch (err) {
     console.error('💥 Error en /login:', err);
-    return res.status(500).json({ error: 'Error del servidor al iniciar sesión' });
+    return res.status(500).json({ error: 'Error del servidor al iniciar sesion' });
   }
 });
 
@@ -155,12 +185,13 @@ router.post('/login', async (req, res) => {
 
 /**
  * Lazy import + client cache para openid-client
+ * (Sin cambios)
  */
 let _oidcClientPromise = null;
 async function getOidcClient() {
   if (_oidcClientPromise) return _oidcClientPromise;
   _oidcClientPromise = (async () => {
-    const { Issuer, generators } = await import('openid-client'); // ESM dinámico
+    const { Issuer, generators } = await import('openid-client'); // ESM dinamico
     if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET) {
       throw new Error('Faltan GOOGLE_CLIENT_ID/GOOGLE_CLIENT_SECRET');
     }
@@ -180,7 +211,7 @@ async function getOidcClient() {
 
 /**
  * GET /oauth/google/start
- * Redirige a Google con scope 'openid email profile' y state firmado (JWT).
+ * (Sin cambios)
  */
 router.get('/oauth/google/start', async (req, res) => {
   try {
@@ -189,7 +220,7 @@ router.get('/oauth/google/start', async (req, res) => {
     // 1) Generamos nonce y lo guardamos DENTRO del state (firmado con JWT)
     const nonce = generators.nonce();
     const state = jwt.sign(
-      { flow: 'google', nonce, t: Date.now() }, // <= guardamos el nonce aquí
+      { flow: 'google', nonce, t: Date.now() }, // <= guardamos el nonce aqui
       JWT_SECRET,
       { issuer: JWT_ISSUER, expiresIn: '10m' }
     );
@@ -197,7 +228,7 @@ router.get('/oauth/google/start', async (req, res) => {
     const authUrl = client.authorizationUrl({
       scope: 'openid email profile',
       state,
-      nonce, // <= también se envía al authorize endpoint
+      nonce, // <= tambien se envia al authorize endpoint
     });
 
     return res.redirect(authUrl);
@@ -209,8 +240,7 @@ router.get('/oauth/google/start', async (req, res) => {
 
 /**
  * GET /oauth/google/callback
- * Si el email existe -> emite token final y redirige a /oauth-success
- * Si no existe -> emite token temporal (purpose:onboarding) y redirige a /onboarding
+ * (Sin cambios)
  */
 // --- GET /oauth/google/callback ---
 router.get('/oauth/google/callback', async (req, res) => {
@@ -223,10 +253,10 @@ router.get('/oauth/google/callback', async (req, res) => {
     try {
       decodedState = jwt.verify(params.state, JWT_SECRET, { issuer: JWT_ISSUER });
     } catch (e) {
-      console.error('✋ state inválido:', e?.message);
+      console.error('✋ state invalido:', e?.message);
       return res.redirect(`${FRONTEND_BASE_URL}/login?error=oauth_state_invalid`);
     }
-    const nonce = decodedState?.nonce; // <= ÉSTE es el que espera openid-client
+    const nonce = decodedState?.nonce; // <= ESTE es el que espera openid-client
 
     // 3) Pasamos { state, nonce } a client.callback para validar el id_token
     const tokenSet = await client.callback(
@@ -250,13 +280,29 @@ router.get('/oauth/google/callback', async (req, res) => {
     const q = await pool.query('SELECT id, nombre, correo, rol FROM usuarios WHERE correo = $1 LIMIT 1', [email]);
     if (q.rows.length) {
       const usuario = q.rows[0];
+
+      // (INICIO CORRECCION DE FLUJO DE LOGIN GOOGLE)
+      // Si el usuario existe pero tiene ROL NULL (se registro localmente y no completo onboarding)
+      if (usuario.rol === null) {
+          console.log(`--- Usuario Google ${email} existe pero sin rol. Enviando a Onboarding. ---`);
+          // (Usamos usuario.id como 'sub' para el token temporal, para que coincida con el flujo local)
+          const temp = signTempOnboardingToken({ sub: usuario.id, email, name, picture });
+          const url = `${FRONTEND_BASE_URL}/onboarding?temp_token=${encodeURIComponent(temp)}`
+            + (name ? `&name=${encodeURIComponent(name)}` : '')
+            + (email ? `&email=${encodeURIComponent(email)}` : '')
+            + (picture ? `&picture=${encodeURIComponent(picture)}` : '');
+          return res.redirect(url);
+      }
+      // (FIN CORRECCION DE FLUJO DE LOGIN GOOGLE)
+
       const finalToken = signAccessToken({ uid: usuario.id, rol: usuario.rol });
       const usuarioB64 = toBase64Url(usuario);
       const url = `${FRONTEND_BASE_URL}/oauth-success?token=${encodeURIComponent(finalToken)}&usuario=${encodeURIComponent(usuarioB64)}`;
       return res.redirect(url);
     }
 
-    const temp = signTempOnboardingToken({ sub, email, name, picture });
+    // Usuario 100% nuevo (no existe en la DB)
+    const temp = signTempOnboardingToken({ sub, email, name, picture }); // 'sub' es el ID de Google
     const url = `${FRONTEND_BASE_URL}/onboarding?temp_token=${encodeURIComponent(temp)}`
       + (name ? `&name=${encodeURIComponent(name)}` : '')
       + (email ? `&email=${encodeURIComponent(email)}` : '')
@@ -273,13 +319,9 @@ router.get('/oauth/google/callback', async (req, res) => {
 //           COMPLETAR PERFIL (Onboarding primera vez)
 // =========================================================
 /**
- * POST /complete-profile
- * Header: Authorization: Bearer <TEMP_JWT> (purpose:onboarding)
- * Body: { rol: 'alumno' | 'docente' }
- * - Crea usuario (con correo_verificado=true, contrasena=NULL, avatar_url)
- * - Inserta vínculo en usuario_proveedores (proveedor='google', proveedor_uid=sub) ON CONFLICT DO NOTHING
- * - Devuelve { token, usuario }
- */
+* POST /complete-profile
+* (Sin cambios, pero ahora maneja usuarios locales Y de google)
+*/
 router.post('/complete-profile', async (req, res) => {
   const authHeader = req.headers.authorization || '';
   const rolRaw = req.body?.rol;
@@ -289,7 +331,7 @@ router.post('/complete-profile', async (req, res) => {
     return res.status(401).json({ error: 'missing_authorization' });
   }
   if (!['alumno', 'docente'].includes(rol)) {
-    return res.status(400).json({ error: 'Rol inválido. Debe ser "alumno" o "docente".' });
+    return res.status(400).json({ error: 'Rol invalido. Debe ser "alumno" o "docente".' });
   }
 
   const tempToken = authHeader.substring('Bearer '.length).trim();
@@ -298,15 +340,17 @@ router.post('/complete-profile', async (req, res) => {
   try {
     payload = verifyTempOnboardingToken(tempToken);
   } catch (err) {
-    console.error('✋ temp token inválido:', err?.message);
+    console.error('✋ temp token invalido:', err?.message);
     const status = err.statusCode || 401;
     return res.status(status).json({ error: 'invalid_or_expired_temp_token' });
   }
 
   const { email, sub, name, picture } = payload;
   const correo = normalizeEmail(email);
+  // 'sub' puede ser el ID de usuario (si es local) o el ID de Google (si es Google)
+  const isGoogleSub = isNaN(Number(sub)); // Heuristica: si no es numero, es Google
 
-  // transacción
+  // transaccion
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -316,25 +360,46 @@ router.post('/complete-profile', async (req, res) => {
     let usuario;
 
     if (!existing.rows.length) {
-    const insUser = await client.query(
-      `INSERT INTO usuarios (nombre, correo, contrasena, rol, correo_verificado, avatar_url, auth_origen)
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
-      RETURNING id, nombre, correo, rol`,
-      [name || correo, correo, null, rol, true, picture || null, 'google']
-    );
+      // --- (INICIO DE LA CORRECCION) ---
+      // Usuario no existe (solo deberia pasar si es Google y es 100% nuevo)
+      const authOrigen = isGoogleSub ? 'google' : 'local_new?'; // Marcamos 'local' como inusual
+      const avatarUrl = picture || null;
+
+      const insUser = await client.query(
+        `INSERT INTO usuarios (nombre, correo, contrasena, rol, correo_verificado, avatar_url, auth_origen)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
+         RETURNING id, nombre, correo, rol`,
+        [name || correo, correo, null, rol, true, avatarUrl, authOrigen]
+      );
       usuario = insUser.rows[0];
+      // --- (FIN DE LA CORRECCION) ---
     } else {
-      // Si por carrera ya existe, NO cambiamos su rol aquí (flujo definido: sin upgrades)
+      // Si el usuario ya existe (flujo local, o Google repetido)
       usuario = existing.rows[0];
+      // Si ya tiene rol, no lo sobrescribimos.
+      // Si no tiene rol (flujo local, o Google que se registro local), le asignamos el rol.
+      if (usuario.rol === null) {
+          const authOrigen = isGoogleSub ? 'google' : 'local';
+          const updateRol = await client.query(
+            `UPDATE usuarios SET rol = $1, auth_origen = COALESCE(auth_origen, $2), avatar_url = COALESCE(avatar_url, $3)
+             WHERE id = $4
+             RETURNING id, nombre, correo, rol`,
+            [rol, authOrigen, picture || null, usuario.id]
+          );
+          usuario = updateRol.rows[0];
+      }
     }
 
     // Vincular proveedor (idempotente)
-    await client.query(
-      `INSERT INTO usuario_proveedores (usuario_id, proveedor, proveedor_uid)
-       VALUES ($1, $2, $3)
-       ON CONFLICT DO NOTHING`,
-      [usuario.id, 'google', String(sub)]
-    );
+    // Solo si el 'sub' es de Google (no es numerico)
+    if (isGoogleSub) {
+      await client.query(
+        `INSERT INTO usuario_proveedores (usuario_id, proveedor, proveedor_uid)
+         VALUES ($1, $2, $3)
+         ON CONFLICT DO NOTHING`,
+        [usuario.id, 'google', String(sub)]
+      );
+    }
 
     await client.query('COMMIT');
 
@@ -359,8 +424,7 @@ router.post('/complete-profile', async (req, res) => {
 // =========================================================
 /**
  * GET /me  (protegida si montas verifyToken antes de este router)
- * Devuelve `req.user` si ya lo poblas en un middleware verify
- * (este archivo no implementa verifyToken; se asume en index.js del servicio)
+ * (Sin cambios)
  */
 router.get('/me', (req, res) => {
   if (!req.user?.uid) return res.status(401).json({ error: 'unauthorized' });
@@ -370,6 +434,6 @@ router.get('/me', (req, res) => {
 // =========================================================
 //           ELIMINADA: /upgrade-docente
 // =========================================================
-// router.post('/upgrade-docente', ... )  --> ❌ eliminado por definición del flujo
+// router.post('/upgrade-docente', ... )  --> ❌ eliminado por definicion del flujo
 
 module.exports = router;

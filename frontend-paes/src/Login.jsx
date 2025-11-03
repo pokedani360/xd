@@ -6,7 +6,6 @@ import { useNavigate } from 'react-router-dom';
 
 const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost';
 
-
 const Login = ({ onLogin }) => {
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
@@ -17,7 +16,6 @@ const Login = ({ onLogin }) => {
 
   // Campos Registro
   const [nombre, setNombre] = useState('');
-  const [rol, setRol] = useState('alumno'); // 'alumno' | 'docente'
 
   // UI state
   const [error, setError] = useState('');
@@ -28,7 +26,7 @@ const Login = ({ onLogin }) => {
     setIsLogin(!isLogin);
     setError('');
     setMensaje('');
-    // no limpiamos correo para facilitar volver; sí limpiamos contraseña
+    // no limpiamos correo para facilitar volver; si limpiamos contraseña
     setContrasena('');
   };
 
@@ -55,9 +53,10 @@ const Login = ({ onLogin }) => {
 
     try {
       if (isLogin) {
-        // ---- LOGIN ----
+        // ---- LOGIN (Sin cambios) ----
         if (!correo || !contrasena) {
           setError('Debes ingresar correo y contraseña.');
+          setLoading(false); // Detenemos el loading
           return;
         }
         const res = await axiosInstance.post('/api/auth/login', {
@@ -65,29 +64,52 @@ const Login = ({ onLogin }) => {
           contrasena,
         });
         const { token, usuario } = res.data || {};
-        if (!token || !usuario) throw new Error('Respuesta inválida del servidor');
+        if (!token || !usuario) throw new Error('Respuesta invalida del servidor');
         onLoginSuccess(token, usuario);
       } else {
-        // ---- REGISTRO ----
-        if (!nombre.trim() || !correo.trim() || !contrasena || !rol) {
+        // ---- REGISTRO (Modificado) ----
+        // (Validacion sin rol)
+        if (!nombre.trim() || !correo.trim() || !contrasena) {
           setError('Todos los campos son obligatorios.');
+          setLoading(false); // Detenemos el loading
           return;
         }
         if (contrasena.length < 6) {
           setError('La contraseña debe tener al menos 6 caracteres.');
+          setLoading(false); // Detenemos el loading
           return;
         }
+
+        // (Payload sin rol)
         const res = await axiosInstance.post('/api/auth/registro', {
           nombre: nombre.trim(),
           correo: correo.trim(),
           contrasena,
-          rol, // 'alumno' | 'docente'
         });
-        // Registro OK: volvemos a login con el correo pre-cargado
-        if (res.status === 201 || res.status === 200) {
-          setMensaje(`Usuario ${res.data?.usuario?.nombre || nombre} creado con éxito.`);
-          setIsLogin(true);
-          setContrasena('');
+
+        // ---- (LOGICA DE EXITO MODIFICADA) ----
+        // Asumimos que el registro ahora devuelve un token temporal
+        // para forzar el Onboarding (igual que Google)
+        const { temp_token, tempToken, token } = res.data || {};
+        const finalTempToken = temp_token || tempToken || token;
+
+        if ((res.status === 201 || res.status === 200) && finalTempToken) {
+            // Limpiamos el formulario (opcional)
+            setNombre('');
+            setCorreo('');
+            setContrasena('');
+            
+            // Redirigimos al Onboarding con el token temporal
+            navigate(
+                `/onboarding?temp_token=${finalTempToken}&name=${encodeURIComponent(nombre.trim())}&email=${encodeURIComponent(correo.trim())}`,
+                { replace: true }
+            );
+        } else {
+            // Fallback si el backend no devuelve un token temp (comportamiento antiguo)
+            console.warn("El registro fue exitoso pero no devolvio un temp_token, mostrando mensaje.")
+            setMensaje(`Usuario ${nombre} creado con exito. Ahora inicia sesion.`);
+            setIsLogin(true);
+            setContrasena('');
         }
       }
     } catch (err) {
@@ -111,7 +133,7 @@ const Login = ({ onLogin }) => {
       className="login-container"
       style={{ position: 'relative', zIndex: 1, pointerEvents: 'auto' }}
     >
-      <h2>{isLogin ? 'Iniciar sesión' : 'Registro'}</h2>
+      <h2>{isLogin ? 'Iniciar sesion' : 'Registro'}</h2>
 
       {/* FORMULARIO principal */}
       <form onSubmit={handleSubmit}>
@@ -133,41 +155,13 @@ const Login = ({ onLogin }) => {
 
         <input
           type="password"
-          placeholder={isLogin ? 'Contraseña' : 'Mínimo 6 caracteres'}
+          placeholder={isLogin ? 'Contraseña' : 'Minimo 6 caracteres'}
           value={contrasena}
           onChange={(e) => setContrasena(e.target.value)}
         />
 
-        {!isLogin && (
-          <div style={{ display: 'grid', gap: 8 }}>
-            <label style={{ fontSize: 14, opacity: 0.9 }}>Rol</label>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input
-                  type="radio"
-                  name="rol"
-                  value="alumno"
-                  checked={rol === 'alumno'}
-                  onChange={(e) => setRol(e.target.value)}
-                />
-                Alumno
-              </label>
-              <label style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input
-                  type="radio"
-                  name="rol"
-                  value="docente"
-                  checked={rol === 'docente'}
-                  onChange={(e) => setRol(e.target.value)}
-                />
-                Profesor
-              </label>
-            </div>
-          </div>
-        )}
-
         <button type="submit" disabled={loading}>
-          {loading ? 'Procesando…' : isLogin ? 'Ingresar' : 'Registrarse'}
+          {loading ? 'Procesando...' : isLogin ? 'Ingresar' : 'Registrarse'}
         </button>
       </form>
 
@@ -178,33 +172,32 @@ const Login = ({ onLogin }) => {
         <hr style={{ flex: 1 }} />
       </div>
 
-<a
-  href={`${API_BASE}/api/auth/oauth/google/start`}
-  style={{
-    display: 'inline-block',
-    marginTop: 12,
-    padding: '10px 12px',
-    border: '1px solid #ccc',
-    borderRadius: 6,
-    textDecoration: 'none',
-    fontWeight: 600,
-    background: '#fff',
-    color: '#111',
-    position: 'relative',
-    zIndex: 2,
-    pointerEvents: 'auto'
-  }}
->
-  {isLogin ? 'Ingresar con Google' : 'Registrarse con Google'}
-</a>
-
+      <a
+        href={`${API_BASE}/api/auth/oauth/google/start`}
+        style={{
+          display: 'inline-block',
+          marginTop: 12,
+          padding: '10px 12px',
+          border: '1px solid #ccc',
+          borderRadius: 6,
+          textDecoration: 'none',
+          fontWeight: 600,
+          background: '#fff',
+          color: '#111',
+          position: 'relative',
+          zIndex: 2,
+          pointerEvents: 'auto'
+        }}
+      >
+        {isLogin ? 'Ingresar con Google' : 'Registrarse con Google'}
+      </a>
 
       {error && <p className="error">{error}</p>}
       {mensaje && <p className="success">{mensaje}</p>}
 
       {/* Link para cambiar de modo */}
       <p onClick={toggleMode} className="toggle-mode" style={{ cursor: 'pointer' }}>
-        {isLogin ? '¿No tienes cuenta? Regístrate aquí' : '¿Ya tienes cuenta? Inicia sesión'}
+        {isLogin ? '¿No tienes cuenta? Registrate aqui' : '¿Ya tienes cuenta? Inicia sesion'}
       </p>
     </div>
   );
